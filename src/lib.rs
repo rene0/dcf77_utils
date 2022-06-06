@@ -189,11 +189,11 @@ impl DCF77Utils {
             {
                 self.led_time = false;
             }
-            if self.frame_counter == self.ticks_per_second {
-                self.frame_counter = 0;
-            } else {
-                self.frame_counter += 1;
-            }
+        }
+        if self.frame_counter == self.ticks_per_second {
+            self.frame_counter = 0;
+        } else {
+            self.frame_counter += 1;
         }
     }
 
