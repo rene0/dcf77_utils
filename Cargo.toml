@@ -11,3 +11,4 @@ description = "DCF77 receiver for embedded platforms."
 
 [dependencies]
 radio_datetime_utils = "0.1.0"
+heapless = "0.7.13"
