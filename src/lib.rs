@@ -14,13 +14,6 @@ const MINUTE_LIMIT: u32 = 1_500_000;
 /// Signal is considered lost after this many microseconds
 const PASSIVE_LIMIT: u32 = 2_500_000;
 
-enum TimerStatus {
-    Initial,
-    Ready,
-    #[allow(dead_code)]
-    Running,
-}
-
 /// DCF77 decoder class
 pub struct DCF77Utils {
     before_first_edge: bool,
@@ -36,7 +29,6 @@ pub struct DCF77Utils {
     parity_2: Option<bool>,
     parity_3: Option<bool>,
     frame_counter: u8,
-    timer_status: TimerStatus,
     ticks_per_second: u8,
     pub led_time: bool,
     pub led_bit: bool,
@@ -59,7 +51,6 @@ impl DCF77Utils {
             parity_2: None,
             parity_3: None,
             frame_counter: 0,
-            timer_status: TimerStatus::Initial,
             ticks_per_second: tps,
             led_time: true,
             led_bit: false,
@@ -98,10 +89,6 @@ impl DCF77Utils {
             self.act_len = 0;
             self.sec_len = 0;
             if !self.split_second {
-                if matches!(self.timer_status, TimerStatus::Initial) {
-                    // tell main to initialize its frame timer
-                    self.timer_status = TimerStatus::Ready;
-                }
                 self.frame_counter = 0;
             }
             self.split_second = false;
