@@ -217,7 +217,9 @@ impl DCF77Utils {
         if !self.first_minute {
             self.radio_datetime.add_minute(1, 7);
         }
-        if self.second == self.get_minute_length() {
+        if self.second >= self.get_minute_length() - 1
+        /*FIXME no 59 ? */
+        {
             let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 21, 27);
             self.parity_1 = radio_datetime_utils::get_parity(&self.bit_buffer, 21, 27, 28);
             let minute = if tmp0.is_some()
