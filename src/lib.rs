@@ -199,11 +199,11 @@ impl DCF77Utils {
             self.led_error = false;
             if self.new_minute {
                 self.decode_time();
-            } else if (self.frame_counter == self.ticks_per_second / 10 && !self.new_minute)
-                || (self.frame_counter == 7 * self.ticks_per_second / 10 && self.new_minute)
-            {
-                self.led_time = false;
             }
+        } else if (self.frame_counter == self.ticks_per_second / 10 && !self.new_minute)
+            || (self.frame_counter == 7 * self.ticks_per_second / 10 && self.new_minute)
+        {
+            self.led_time = false;
         }
         if self.frame_counter == self.ticks_per_second {
             self.frame_counter = 0;
