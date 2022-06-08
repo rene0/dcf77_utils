@@ -187,7 +187,10 @@ impl DCF77Utils {
             self.second = 0;
         } else {
             // wrap in case we missed the minute marker to prevent index-out-of-range
-            self.second = (self.second + 1) % (self.get_minute_length() + 1);
+            self.second += 1;
+            if self.second == self.get_minute_length() + 1 {
+                self.second = 0;
+            }
         }
     }
 
