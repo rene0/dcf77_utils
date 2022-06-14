@@ -3,7 +3,6 @@
 #![no_std]
 
 use core::cmp::Ordering;
-use heapless::String;
 use radio_datetime_utils::RadioDateTimeUtils;
 
 /// Time in microseconds for a bit to be considered 1
@@ -148,20 +147,6 @@ impl DCF77Utils {
         } else {
             'S'
         }
-    }
-
-    /// Return a textual representation of the weekday
-    pub fn str_weekday(&self) -> String<2> {
-        String::<2>::from(match self.radio_datetime.weekday {
-            Some(1) => "Mo",
-            Some(2) => "Tu",
-            Some(3) => "We",
-            Some(4) => "Th",
-            Some(5) => "Fr",
-            Some(6) => "Sa",
-            Some(7) => "Su",
-            _ => "**",
-        })
     }
 
     /// Increase or reset `second` and clear `first_minute` when appropriate.
