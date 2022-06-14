@@ -17,22 +17,22 @@ const PASSIVE_LIMIT: u32 = 2_500_000;
 /// DCF77 decoder class
 pub struct DCF77Utils {
     before_first_edge: bool,
-    pub first_minute: bool,
-    pub new_minute: bool,
+    first_minute: bool,
+    new_minute: bool,
     act_len: u32,
     sec_len: u32,
     split_second: bool,
-    pub second: u8,
+    second: u8,
     bit_buffer: [Option<bool>; 60],
-    pub radio_datetime: RadioDateTimeUtils,
-    pub parity_1: Option<bool>,
-    pub parity_2: Option<bool>,
-    pub parity_3: Option<bool>,
-    pub frame_counter: u8,
+    radio_datetime: RadioDateTimeUtils,
+    parity_1: Option<bool>,
+    parity_2: Option<bool>,
+    parity_3: Option<bool>,
+    frame_counter: u8,
     ticks_per_second: u8,
-    pub led_time: bool,
-    pub led_bit: bool,
-    pub led_error: bool,
+    led_time: bool,
+    led_bit: bool,
+    led_error: bool,
 }
 
 impl DCF77Utils {
@@ -56,6 +56,74 @@ impl DCF77Utils {
             led_bit: false,
             led_error: true,
         }
+    }
+
+    pub fn get_first_minute(&self) -> bool {
+        self.first_minute
+    }
+
+    pub fn get_new_minute(&self) -> bool {
+        self.new_minute
+    }
+
+    pub fn get_second(&self) -> u8 {
+        self.second
+    }
+
+    pub fn get_radio_datetime(&self) -> RadioDateTimeUtils {
+        self.radio_datetime
+    }
+
+    pub fn get_parity_1(&self) -> Option<bool> {
+        self.parity_1
+    }
+
+    pub fn str_parity_1(&self) -> char {
+        if self.parity_1 == Some(false) {
+            ' '
+        } else {
+            '1'
+        }
+    }
+
+    pub fn get_parity_2(&self) -> Option<bool> {
+        self.parity_2
+    }
+
+    pub fn str_parity_2(&self) -> char {
+        if self.parity_2 == Some(false) {
+            ' '
+        } else {
+            '2'
+        }
+    }
+
+    pub fn get_parity_3(&self) -> Option<bool> {
+        self.parity_3
+    }
+
+    pub fn str_parity_3(&self) -> char {
+        if self.parity_3 == Some(false) {
+            ' '
+        } else {
+            '3'
+        }
+    }
+
+    pub fn get_frame_counter(&self) -> u8 {
+        self.frame_counter
+    }
+
+    pub fn get_led_time(&self) -> bool {
+        self.led_time
+    }
+
+    pub fn get_led_bit(&self) -> bool {
+        self.led_bit
+    }
+
+    pub fn get_led_error(&self) -> bool {
+        self.led_error
     }
 
     pub fn handle_new_edge(&mut self, is_low_edge: bool, t0: u32, t1: u32) {
