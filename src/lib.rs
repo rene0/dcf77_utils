@@ -46,7 +46,7 @@ impl DCF77Utils {
             second: 0,
             split_second: false,
             bit_buffer: [None; 60],
-            radio_datetime: RadioDateTimeUtils::default(),
+            radio_datetime: RadioDateTimeUtils::new(7),
             parity_1: None,
             parity_2: None,
             parity_3: None,
@@ -169,10 +169,11 @@ impl DCF77Utils {
 
     /// Determine the length of this minute in bits, tolerate None as leap second state.
     fn get_minute_length(&self) -> u8 {
-        if self.radio_datetime.leap_second.is_none() {
+        if self.radio_datetime.get_leap_second().is_none() {
             return 59;
         }
-        59 + if (self.radio_datetime.leap_second.unwrap() & radio_datetime_utils::LEAP_PROCESSED)
+        59 + if (self.radio_datetime.get_leap_second().unwrap()
+            & radio_datetime_utils::LEAP_PROCESSED)
             != 0
         {
             1
@@ -227,12 +228,12 @@ impl DCF77Utils {
                 && self.bit_buffer[17].is_some()
                 && self.bit_buffer[18].is_some()
                 && self.bit_buffer[17] != self.bit_buffer[18]
-                && self.radio_datetime.year.is_none()
-                && self.radio_datetime.month.is_none()
-                && self.radio_datetime.day.is_some()
-                && self.radio_datetime.weekday.is_some()
-                && self.radio_datetime.hour.is_some()
-                && self.radio_datetime.minute.is_some()
+                && self.radio_datetime.get_year().is_none()
+                && self.radio_datetime.get_month().is_none()
+                && self.radio_datetime.get_day().is_some()
+                && self.radio_datetime.get_weekday().is_some()
+                && self.radio_datetime.get_hour().is_some()
+                && self.radio_datetime.get_minute().is_some()
             {
                 // allow displaying of information after the first properly decoded minute
                 self.first_minute = false;
@@ -271,87 +272,36 @@ impl DCF77Utils {
     /// Decode the time broadcast during the last minute, tolerate bad DST status.
     fn decode_time(&mut self) {
         if !self.first_minute {
-            self.radio_datetime.add_minute(1, 7);
+            self.radio_datetime.add_minute();
         }
         if self.second == self.get_minute_length() {
             let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 21, 27);
             self.parity_1 = radio_datetime_utils::get_parity(&self.bit_buffer, 21, 27, 28);
-            let minute = if tmp0.is_some()
-                && (0..=59).contains(&tmp0.unwrap())
-                && self.parity_1 == Some(false)
-            {
-                tmp0
-            } else {
-                self.radio_datetime.minute
-            };
+            self.radio_datetime
+                .set_minute(tmp0, self.parity_1 == Some(false), !self.first_minute);
 
             let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 29, 34);
             self.parity_2 = radio_datetime_utils::get_parity(&self.bit_buffer, 29, 34, 35);
-            let hour = if tmp0.is_some()
-                && (0..=23).contains(&tmp0.unwrap())
-                && self.parity_2 == Some(false)
-            {
-                tmp0
-            } else {
-                self.radio_datetime.hour
-            };
+            self.radio_datetime
+                .set_hour(tmp0, self.parity_2 == Some(false), !self.first_minute);
+
+            self.parity_3 = radio_datetime_utils::get_parity(&self.bit_buffer, 36, 57, 58);
+
+            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 42, 44);
+            self.radio_datetime
+                .set_weekday(tmp0, self.parity_3 == Some(false), !self.first_minute);
+
+            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 45, 49);
+            self.radio_datetime
+                .set_month(tmp0, self.parity_3 == Some(false), !self.first_minute);
+
+            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 50, 57);
+            self.radio_datetime
+                .set_year(tmp0, self.parity_3 == Some(false), !self.first_minute);
 
             let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 36, 41);
-            let tmp1 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 42, 44);
-            let tmp2 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 45, 49);
-            let tmp3 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 50, 57);
-            self.parity_3 = radio_datetime_utils::get_parity(&self.bit_buffer, 36, 57, 58);
-            let weekday = if tmp1.is_some()
-                && (1..=7).contains(&tmp1.unwrap())
-                && self.parity_3 == Some(false)
-            {
-                tmp1
-            } else {
-                self.radio_datetime.weekday
-            };
-            let month = if tmp2.is_some()
-                && (1..=12).contains(&tmp2.unwrap())
-                && self.parity_3 == Some(false)
-            {
-                tmp2
-            } else {
-                self.radio_datetime.month
-            };
-            let year = if tmp3.is_some()
-                && (0..=99).contains(&tmp3.unwrap())
-                && self.parity_3 == Some(false)
-            {
-                tmp3
-            } else {
-                self.radio_datetime.year
-            };
-            let mut day = self.radio_datetime.day;
-            if let Some(s_year) = year {
-                if let Some(s_month) = month {
-                    if let Some(s_tmp0) = tmp0 {
-                        if let Some(s_weekday) = weekday {
-                            let last_day =
-                                radio_datetime_utils::last_day(s_year, s_month, s_tmp0, s_weekday);
-                            if last_day.is_some()
-                                && (1..=last_day.unwrap()).contains(&tmp0.unwrap())
-                                && self.parity_3 == Some(false)
-                            {
-                                day = tmp0;
-                            }
-                        }
-                    }
-                }
-            }
-            if !self.first_minute {
-                self.radio_datetime
-                    .set_jumps(year, month, day, weekday, hour, minute);
-            }
-            self.radio_datetime.year = year;
-            self.radio_datetime.month = month;
-            self.radio_datetime.day = day;
-            self.radio_datetime.weekday = weekday;
-            self.radio_datetime.hour = hour;
-            self.radio_datetime.minute = minute;
+            self.radio_datetime
+                .set_day(tmp0, self.parity_3 == Some(false), !self.first_minute);
         }
     }
 }
