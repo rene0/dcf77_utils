@@ -162,7 +162,7 @@ impl DCF77Utils {
             self.split_second = false;
         } else {
             self.split_second = true;
-            // self.bit_buffer[self.second as usize] = -1; // perhaps?
+            // self.bit_buffer[self.second as usize] = None; // perhaps?
             self.led_error = true;
         }
     }
