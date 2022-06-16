@@ -92,6 +92,21 @@ impl DCF77Utils {
         self.parity_3
     }
 
+    /// Get the value of bit 0 (must always be 0).
+    pub fn get_bit_0(&self) -> Option<bool> {
+        self.bit_buffer[0]
+    }
+
+    /// Get the value of the transmitter call bit.
+    pub fn get_call_bit(&self) -> Option<bool> {
+        self.bit_buffer[15]
+    }
+
+    /// Get the value of bit 20 (must always be 1).
+    pub fn get_bit_20(&self) -> Option<bool> {
+        self.bit_buffer[20]
+    }
+
     /// Get the frame-in-second counter.
     pub fn get_frame_counter(&self) -> u8 {
         self.frame_counter
