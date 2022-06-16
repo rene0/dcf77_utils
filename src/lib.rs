@@ -2,7 +2,6 @@
 
 #![no_std]
 
-use core::cmp::Ordering;
 use radio_datetime_utils::RadioDateTimeUtils;
 
 /// Time in microseconds for a bit to be considered 1
@@ -83,41 +82,14 @@ impl DCF77Utils {
         self.parity_1
     }
 
-    /// Get a textual version of the minute parity bit, ' ' for OK or '1' for error.
-    pub fn str_parity_1(&self) -> char {
-        if self.parity_1 == Some(false) {
-            ' '
-        } else {
-            '1'
-        }
-    }
-
     /// Get the hour parity bit, Some(false) means OK.
     pub fn get_parity_2(&self) -> Option<bool> {
         self.parity_2
     }
 
-    /// Get a textual version of the hour parity bit, ' ' for OK or '2' for error.
-    pub fn str_parity_2(&self) -> char {
-        if self.parity_2 == Some(false) {
-            ' '
-        } else {
-            '2'
-        }
-    }
-
     /// Get the date parity bit, Some(false) means OK.
     pub fn get_parity_3(&self) -> Option<bool> {
         self.parity_3
-    }
-
-    /// Get a textual version of the date parity bit, ' ' for OK or '3' for error.
-    pub fn str_parity_3(&self) -> char {
-        if self.parity_3 == Some(false) {
-            ' '
-        } else {
-            '3'
-        }
     }
 
     /// Get the frame-in-second counter.
@@ -203,42 +175,6 @@ impl DCF77Utils {
             1
         } else {
             0
-        }
-    }
-
-    /// Return a character representation of the minute length status.
-    pub fn str_minute_length(&self) -> char {
-        match self.second.cmp(&self.get_minute_length()) {
-            Ordering::Less => '<',
-            Ordering::Greater => '>',
-            Ordering::Equal => ' ',
-        }
-    }
-
-    /// Return a character representation of the bit 0 status
-    pub fn str_bit0(&self) -> char {
-        if self.bit_buffer[0] == Some(false) {
-            ' '
-        } else {
-            'M'
-        }
-    }
-
-    /// Return a character representation of the call bit status
-    pub fn str_call_bit(&self) -> char {
-        if self.bit_buffer[15] == Some(true) {
-            'C'
-        } else {
-            ' '
-        }
-    }
-
-    /// Return a character representation of the bit 20 status
-    pub fn str_bit20(&self) -> char {
-        if self.bit_buffer[20] == Some(true) {
-            ' '
-        } else {
-            'S'
         }
     }
 
