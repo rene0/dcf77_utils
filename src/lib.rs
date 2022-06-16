@@ -179,7 +179,7 @@ impl DCF77Utils {
     }
 
     /// Determine the length of this minute in bits, tolerate None as leap second state.
-    fn get_minute_length(&self) -> u8 {
+    pub fn get_minute_length(&self) -> u8 {
         if self.radio_datetime.get_leap_second().is_none() {
             return 59;
         }
