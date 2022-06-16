@@ -58,26 +58,32 @@ impl DCF77Utils {
         }
     }
 
+    /// Return if this is the first minute that is decoded.
     pub fn get_first_minute(&self) -> bool {
         self.first_minute
     }
 
+    /// Return if a new minute has arrived.
     pub fn get_new_minute(&self) -> bool {
         self.new_minute
     }
 
+    /// Get the second counter.
     pub fn get_second(&self) -> u8 {
         self.second
     }
 
+    /// Get a copy of the date/time structure.
     pub fn get_radio_datetime(&self) -> RadioDateTimeUtils {
         self.radio_datetime
     }
 
+    /// Get the minute parity bit, Some(false) means OK.
     pub fn get_parity_1(&self) -> Option<bool> {
         self.parity_1
     }
 
+    /// Get a textual version of the minute parity bit, ' ' for OK or '1' for error.
     pub fn str_parity_1(&self) -> char {
         if self.parity_1 == Some(false) {
             ' '
@@ -86,10 +92,12 @@ impl DCF77Utils {
         }
     }
 
+    /// Get the hour parity bit, Some(false) means OK.
     pub fn get_parity_2(&self) -> Option<bool> {
         self.parity_2
     }
 
+    /// Get a textual version of the hour parity bit, ' ' for OK or '2' for error.
     pub fn str_parity_2(&self) -> char {
         if self.parity_2 == Some(false) {
             ' '
@@ -98,10 +106,12 @@ impl DCF77Utils {
         }
     }
 
+    /// Get the date parity bit, Some(false) means OK.
     pub fn get_parity_3(&self) -> Option<bool> {
         self.parity_3
     }
 
+    /// Get a textual version of the date parity bit, ' ' for OK or '3' for error.
     pub fn str_parity_3(&self) -> char {
         if self.parity_3 == Some(false) {
             ' '
@@ -110,22 +120,36 @@ impl DCF77Utils {
         }
     }
 
+    /// Get the frame-in-second counter.
     pub fn get_frame_counter(&self) -> u8 {
         self.frame_counter
     }
 
+    /// Return if the time (i.e. new second or minute) indicator is active.
     pub fn get_led_time(&self) -> bool {
         self.led_time
     }
 
+    /// Return if the currently received bit is a 1.
     pub fn get_led_bit(&self) -> bool {
         self.led_bit
     }
 
+    /// Return if there was an error receiving this bit.
     pub fn get_led_error(&self) -> bool {
         self.led_error
     }
 
+    /**
+     * Determine the bit value if a new edge is received. indicates reception errors,
+     * and checks if a new minute has started.
+     *
+     * # Arguments
+     * * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
+     *                   low-to-high).
+     * * `t0` - time stamp of the previously received edge, in microseconds
+     * * `t1` - time stamp of the currently received edge, in microseconds
+     */
     pub fn handle_new_edge(&mut self, is_low_edge: bool, t0: u32, t1: u32) {
         if self.before_first_edge {
             self.before_first_edge = false;
