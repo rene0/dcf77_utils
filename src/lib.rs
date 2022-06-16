@@ -208,7 +208,8 @@ impl DCF77Utils {
         }
     }
 
-    /// Do things when a new timer tick arrives.
+    /// Update the frame counter and the status of the time, bit, and error indicators when a
+    /// new timer tick arrives. Calculate the current date ane time upon a new minute.
     pub fn handle_new_timer_tick(&mut self) {
         if self.frame_counter == 0 {
             self.ind_time = true;
