@@ -203,8 +203,8 @@ impl DCF77Utils {
                 && self.bit_buffer[17].is_some()
                 && self.bit_buffer[18].is_some()
                 && self.bit_buffer[17] != self.bit_buffer[18]
-                && self.radio_datetime.get_year().is_none()
-                && self.radio_datetime.get_month().is_none()
+                && self.radio_datetime.get_year().is_some()
+                && self.radio_datetime.get_month().is_some()
                 && self.radio_datetime.get_day().is_some()
                 && self.radio_datetime.get_weekday().is_some()
                 && self.radio_datetime.get_hour().is_some()
