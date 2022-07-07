@@ -97,6 +97,18 @@ impl DCF77Utils {
         self.bit_buffer[0]
     }
 
+    /// Get the value of the third-party buffer, a 14-bit number with the least significant bit first.
+    pub fn get_third_party_buffer(&self) -> Option<u16> {
+        let mut val = 0;
+        let mut mult = 1;
+        for b in &self.bit_buffer[1..=14] {
+            (*b)?;
+            val += mult * b.unwrap() as u16;
+            mult *= 2;
+        }
+        Some(val)
+    }
+
     /// Get the value of the transmitter call bit.
     pub fn get_call_bit(&self) -> Option<bool> {
         self.bit_buffer[15]
