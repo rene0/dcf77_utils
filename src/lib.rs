@@ -264,16 +264,19 @@ impl DCF77Utils {
         }
         if self.second == self.get_minute_length() {
             let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 21, 27);
-            self.parity_1 = radio_datetime_utils::get_parity(&self.bit_buffer, 21, 27, 28);
+            self.parity_1 =
+                radio_datetime_utils::get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
             self.radio_datetime
                 .set_minute(tmp0, self.parity_1 == Some(false), !self.first_minute);
 
             let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 29, 34);
-            self.parity_2 = radio_datetime_utils::get_parity(&self.bit_buffer, 29, 34, 35);
+            self.parity_2 =
+                radio_datetime_utils::get_parity(&self.bit_buffer, 29, 34, self.bit_buffer[35]);
             self.radio_datetime
                 .set_hour(tmp0, self.parity_2 == Some(false), !self.first_minute);
 
-            self.parity_3 = radio_datetime_utils::get_parity(&self.bit_buffer, 36, 57, 58);
+            self.parity_3 =
+                radio_datetime_utils::get_parity(&self.bit_buffer, 36, 57, self.bit_buffer[58]);
 
             let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 42, 44);
             self.radio_datetime
