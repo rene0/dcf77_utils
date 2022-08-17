@@ -269,20 +269,18 @@ impl DCF77Utils {
             added_minute = self.radio_datetime.add_minute();
         }
         if self.second == self.get_minute_length() {
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 21, 27);
             self.parity_1 =
                 radio_datetime_utils::get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
             self.radio_datetime.set_minute(
-                tmp0,
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 21, 27),
                 self.parity_1 == Some(false),
                 added_minute && !self.first_minute,
             );
 
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 29, 34);
             self.parity_2 =
                 radio_datetime_utils::get_parity(&self.bit_buffer, 29, 34, self.bit_buffer[35]);
             self.radio_datetime.set_hour(
-                tmp0,
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 29, 34),
                 self.parity_2 == Some(false),
                 added_minute && !self.first_minute,
             );
@@ -290,30 +288,26 @@ impl DCF77Utils {
             self.parity_3 =
                 radio_datetime_utils::get_parity(&self.bit_buffer, 36, 57, self.bit_buffer[58]);
 
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 42, 44);
             self.radio_datetime.set_weekday(
-                tmp0,
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 42, 44),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 45, 49);
             self.radio_datetime.set_month(
-                tmp0,
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 45, 49),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 50, 57);
             self.radio_datetime.set_year(
-                tmp0,
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 50, 57),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
-            let tmp0 = radio_datetime_utils::get_bcd_value(&self.bit_buffer, 36, 41);
             self.radio_datetime.set_day(
-                tmp0,
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 36, 41),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
