@@ -219,9 +219,7 @@ impl DCF77Utils {
                 && self.second == self.get_minute_length()
                 && self.bit_buffer[0] == Some(false)
                 && self.bit_buffer[20] == Some(true)
-                && self.bit_buffer[17].is_some()
-                && self.bit_buffer[18].is_some()
-                && self.bit_buffer[17] != self.bit_buffer[18]
+                && self.radio_datetime.get_dst().is_some()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
                 && self.radio_datetime.get_day().is_some()
@@ -317,6 +315,19 @@ impl DCF77Utils {
             self.radio_datetime.set_day(
                 tmp0,
                 self.parity_3 == Some(false),
+                added_minute && !self.first_minute,
+            );
+            let tmp = if self.bit_buffer[17].is_some()
+                && self.bit_buffer[18].is_some()
+                && self.bit_buffer[17] != self.bit_buffer[18]
+            {
+                self.bit_buffer[17]
+            } else {
+                None
+            };
+            self.radio_datetime.set_dst(
+                tmp,
+                self.bit_buffer[16],
                 added_minute && !self.first_minute,
             );
             // set_leap_second() wants minute length in seconds
