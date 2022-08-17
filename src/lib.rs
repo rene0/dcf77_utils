@@ -24,6 +24,7 @@ pub struct DCF77Utils {
     second: u8,
     bit_buffer: [Option<bool>; 60],
     radio_datetime: RadioDateTimeUtils,
+    leap_second_is_one: Option<bool>,
     parity_1: Option<bool>,
     parity_2: Option<bool>,
     parity_3: Option<bool>,
@@ -46,6 +47,7 @@ impl DCF77Utils {
             split_second: false,
             bit_buffer: [None; 60],
             radio_datetime: RadioDateTimeUtils::new(7),
+            leap_second_is_one: None,
             parity_1: None,
             parity_2: None,
             parity_3: None,
@@ -75,6 +77,11 @@ impl DCF77Utils {
     /// Get a copy of the date/time structure.
     pub fn get_radio_datetime(&self) -> RadioDateTimeUtils {
         self.radio_datetime
+    }
+
+    /// Get the leap-second-is-one anomaly.
+    pub fn get_leap_second_is_one(&self) -> Option<bool> {
+        self.leap_second_is_one
     }
 
     /// Get the minute parity bit, Some(false) means OK.
@@ -312,6 +319,18 @@ impl DCF77Utils {
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
+            // set_leap_second() wants minute length in seconds
+            self.radio_datetime
+                .set_leap_second(self.bit_buffer[19], self.get_minute_length() + 1);
+            self.leap_second_is_one = None;
+            if self.radio_datetime.get_leap_second().is_some()
+                && (self.radio_datetime.get_leap_second().unwrap()
+                    & radio_datetime_utils::LEAP_PROCESSED)
+                    != 0
+            {
+                self.leap_second_is_one = Some(self.bit_buffer[59] == Some(true));
+            }
+            self.radio_datetime.bump_minutes_running();
         }
     }
 }
