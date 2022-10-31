@@ -2,7 +2,9 @@
 
 #![no_std]
 
-use radio_datetime_utils::RadioDateTimeUtils;
+use radio_datetime_utils::{
+    get_bcd_value, get_parity, time_diff, RadioDateTimeUtils, LEAP_PROCESSED,
+};
 
 /// Upper limit for spike detection in microseconds, fine tune
 const SPIKE_LIMIT: u32 = 30_000;
@@ -144,7 +146,7 @@ impl DCF77Utils {
             self.t0 = t;
             return;
         }
-        let t_diff = radio_datetime_utils::time_diff(self.t0, t);
+        let t_diff = time_diff(self.t0, t);
         if t_diff < SPIKE_LIMIT {
             return; // random positive or negative spike, ignore
         }
@@ -170,7 +172,7 @@ impl DCF77Utils {
     pub fn get_minute_length(&self) -> u8 {
         let leap_second = self.radio_datetime.get_leap_second();
         if let Some(s_leap_second) = leap_second {
-            59 + ((s_leap_second & radio_datetime_utils::LEAP_PROCESSED) != 0) as u8
+            59 + ((s_leap_second & LEAP_PROCESSED) != 0) as u8
         } else {
             59
         }
@@ -213,45 +215,42 @@ impl DCF77Utils {
         }
         let minute_length = self.get_minute_length();
         if self.second == minute_length {
-            self.parity_1 =
-                radio_datetime_utils::get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
+            self.parity_1 = get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
             self.radio_datetime.set_minute(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 21, 27),
+                get_bcd_value(&self.bit_buffer, 21, 27),
                 self.parity_1 == Some(false),
                 added_minute && !self.first_minute,
             );
 
-            self.parity_2 =
-                radio_datetime_utils::get_parity(&self.bit_buffer, 29, 34, self.bit_buffer[35]);
+            self.parity_2 = get_parity(&self.bit_buffer, 29, 34, self.bit_buffer[35]);
             self.radio_datetime.set_hour(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 29, 34),
+                get_bcd_value(&self.bit_buffer, 29, 34),
                 self.parity_2 == Some(false),
                 added_minute && !self.first_minute,
             );
 
-            self.parity_3 =
-                radio_datetime_utils::get_parity(&self.bit_buffer, 36, 57, self.bit_buffer[58]);
+            self.parity_3 = get_parity(&self.bit_buffer, 36, 57, self.bit_buffer[58]);
 
             self.radio_datetime.set_weekday(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 42, 44),
+                get_bcd_value(&self.bit_buffer, 42, 44),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_month(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 45, 49),
+                get_bcd_value(&self.bit_buffer, 45, 49),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_year(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 50, 57),
+                get_bcd_value(&self.bit_buffer, 50, 57),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_day(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 36, 41),
+                get_bcd_value(&self.bit_buffer, 36, 41),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
@@ -275,9 +274,7 @@ impl DCF77Utils {
                 .set_leap_second(self.bit_buffer[19], minute_length + 1);
             self.leap_second_is_one = None;
             let leap_second = self.radio_datetime.get_leap_second();
-            if leap_second.is_some()
-                && (leap_second.unwrap() & radio_datetime_utils::LEAP_PROCESSED) != 0
-            {
+            if leap_second.is_some() && (leap_second.unwrap() & LEAP_PROCESSED) != 0 {
                 self.leap_second_is_one = Some(self.bit_buffer[59] == Some(true));
             }
 
