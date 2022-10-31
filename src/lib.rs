@@ -31,8 +31,6 @@ pub struct DCF77Utils {
     frame_counter: u8,
     ticks_per_second: u8,
     ind_time: bool,
-    ind_bit: bool,
-    ind_error: bool,
 }
 
 impl DCF77Utils {
@@ -54,8 +52,6 @@ impl DCF77Utils {
             frame_counter: 0,
             ticks_per_second: tps,
             ind_time: true,
-            ind_bit: false,
-            ind_error: true,
         }
     }
 
@@ -99,6 +95,11 @@ impl DCF77Utils {
         self.parity_3
     }
 
+    /// Get the value of the current bit.
+    pub fn get_current_bit(&self) -> Option<bool> {
+        self.bit_buffer[self.second as usize]
+    }
+
     /// Get the value of bit 0 (must always be 0).
     pub fn get_bit_0(&self) -> Option<bool> {
         self.bit_buffer[0]
@@ -136,16 +137,6 @@ impl DCF77Utils {
         self.ind_time
     }
 
-    /// Return if the currently received bit is a 1.
-    pub fn get_ind_bit(&self) -> bool {
-        self.ind_bit
-    }
-
-    /// Return if there was an error receiving this bit.
-    pub fn get_ind_error(&self) -> bool {
-        self.ind_error
-    }
-
     /**
      * Determine the bit value if a new edge is received. indicates reception errors,
      * and checks if a new minute has started.
@@ -170,15 +161,12 @@ impl DCF77Utils {
                 self.act_len += t_diff;
             }
             if self.act_len > ACTIVE_LIMIT {
-                self.ind_bit = true;
                 self.bit_buffer[self.second as usize] = Some(true);
                 if self.act_len > 2 * ACTIVE_LIMIT {
-                    self.ind_error = true;
                     self.bit_buffer[self.second as usize] = None;
                 }
             }
         } else if self.sec_len > PASSIVE_LIMIT {
-            self.ind_error = true;
             self.act_len = 0;
             self.sec_len = 0;
         } else if self.sec_len > SECOND_LIMIT {
@@ -192,8 +180,7 @@ impl DCF77Utils {
             self.split_second = false;
         } else {
             self.split_second = true;
-            // self.bit_buffer[self.second as usize] = None; // perhaps?
-            self.ind_error = true;
+            self.bit_buffer[self.second as usize] = None;
         }
     }
 
@@ -245,8 +232,6 @@ impl DCF77Utils {
     pub fn handle_new_timer_tick(&mut self) {
         if self.frame_counter == 0 {
             self.ind_time = true;
-            self.ind_bit = false;
-            self.ind_error = false;
             if self.new_minute {
                 self.decode_time();
             }
