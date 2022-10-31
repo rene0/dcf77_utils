@@ -286,3 +286,9 @@ impl DCF77Utils {
         }
     }
 }
+
+impl Default for DCF77Utils {
+    fn default() -> Self {
+        Self::new()
+    }
+}
