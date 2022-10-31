@@ -255,7 +255,8 @@ impl DCF77Utils {
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
-            let tmp = if self.bit_buffer[17].is_some()
+
+            let dst = if self.bit_buffer[17].is_some()
                 && self.bit_buffer[18].is_some()
                 && self.bit_buffer[17] != self.bit_buffer[18]
             {
@@ -264,21 +265,22 @@ impl DCF77Utils {
                 None
             };
             self.radio_datetime.set_dst(
-                tmp,
+                dst,
                 self.bit_buffer[16],
                 added_minute && !self.first_minute,
             );
+
             // set_leap_second() wants minute length in seconds
             self.radio_datetime
                 .set_leap_second(self.bit_buffer[19], minute_length + 1);
             self.leap_second_is_one = None;
-            if self.radio_datetime.get_leap_second().is_some()
-                && (self.radio_datetime.get_leap_second().unwrap()
-                    & radio_datetime_utils::LEAP_PROCESSED)
-                    != 0
+            let leap_second = self.radio_datetime.get_leap_second();
+            if leap_second.is_some()
+                && (leap_second.unwrap() & radio_datetime_utils::LEAP_PROCESSED) != 0
             {
                 self.leap_second_is_one = Some(self.bit_buffer[59] == Some(true));
             }
+
             self.radio_datetime.bump_minutes_running();
         }
     }
