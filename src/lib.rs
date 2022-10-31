@@ -4,7 +4,7 @@
 #![cfg_attr(not(test), no_std)]
 
 use radio_datetime_utils::{
-    get_bcd_value, get_parity, time_diff, RadioDateTimeUtils, LEAP_PROCESSED,
+    get_bcd_value, get_parity, time_diff, RadioDateTimeUtils, LEAP_ANNOUNCED, LEAP_PROCESSED,
 };
 
 /// Upper limit for spike detection in microseconds, fine tune
@@ -192,11 +192,17 @@ impl DCF77Utils {
 
     /// Determine the length of this minute in bits, tolerate None as leap second state.
     pub fn get_minute_length(&self) -> u8 {
-        let leap_second = self.radio_datetime.get_leap_second();
-        if let Some(s_leap_second) = leap_second {
-            59 + ((s_leap_second & LEAP_PROCESSED) != 0) as u8
+        if let Some(s_leap_second) = self.radio_datetime.get_leap_second() {
+            if ((s_leap_second & LEAP_PROCESSED) != 0)
+                || ((self.radio_datetime.get_minute() == Some(59))
+                    && ((s_leap_second & LEAP_ANNOUNCED) != 0))
+            {
+                60 // after (LEAP_PROCESSED) or before (LEAP_ANNOUNCED) minute has been decoded
+            } else {
+                59 // minute without a leap second, leap second state is present
+            }
         } else {
-            59
+            59 // minute without a leap second, leap second state is absent
         }
     }
 
