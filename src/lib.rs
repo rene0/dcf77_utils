@@ -1,5 +1,6 @@
-//! DCF77 receiver for embedded platforms using e.g. a Canaduino V3 receiver.
+//! Collection of utilities for DCF77 receivers.
 
+//! Build with no_std for embedded platforms.
 #![no_std]
 
 use radio_datetime_utils::{
@@ -35,6 +36,7 @@ pub struct DCF77Utils {
 }
 
 impl DCF77Utils {
+    /// Initialize a new DCF77Utils instance.
     pub fn new() -> Self {
         Self {
             first_minute: true,
@@ -52,7 +54,7 @@ impl DCF77Utils {
         }
     }
 
-    /// Return if this is the first minute that is decoded.
+    /// Return if this is before the first minute that has been successfully decoded.
     pub fn get_first_minute(&self) -> bool {
         self.first_minute
     }
@@ -135,6 +137,8 @@ impl DCF77Utils {
      *
      * This function can deal with spikes, which are arbitrarily set to `SPIKE_LIMIT` microseconds.
      *
+     * This method must be called _before_ `increase_second()`
+     *
      * # Arguments
      * * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
      *                   low-to-high).
@@ -179,6 +183,8 @@ impl DCF77Utils {
     }
 
     /// Increase or reset `second` and clear `first_minute` when appropriate.
+    ///
+    /// This method must be called _after_ `decode_time()` and `handle_new_edge()`
     pub fn increase_second(&mut self) {
         let minute_length = self.get_minute_length();
         if self.new_minute {
@@ -208,6 +214,8 @@ impl DCF77Utils {
     }
 
     /// Decode the time broadcast during the last minute.
+    ///
+    /// This method must be called _before_ `increase_second()`
     pub fn decode_time(&mut self) {
         let mut added_minute = false;
         if !self.first_minute {
