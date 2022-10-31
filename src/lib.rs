@@ -4,23 +4,22 @@
 
 use radio_datetime_utils::RadioDateTimeUtils;
 
-/// Time in microseconds for a bit to be considered 1
+/// Upper limit for spike detection in microseconds, fine tune
+const SPIKE_LIMIT: u32 = 30_000;
+/// Maximum time in microseconds for a bit to be considered 0
 const ACTIVE_LIMIT: u32 = 150_000;
-/// Minimum amount of time in microseconds between two bits, mostly to deal with noise
-const SECOND_LIMIT: u32 = 950_000;
-/// Time in microseconds for the minute marker to be detected
+/// Maximum time in microseconds for a bit to be considered 1
+const ACTIVE_RUNAWAY: u32 = 250_000;
+/// Minimum time in microseconds for a new minute to be detected
 const MINUTE_LIMIT: u32 = 1_500_000;
 /// Signal is considered lost after this many microseconds
-const PASSIVE_LIMIT: u32 = 2_500_000;
+const PASSIVE_RUNAWAY: u32 = 2_500_000;
 
 /// DCF77 decoder class
 pub struct DCF77Utils {
-    before_first_edge: bool,
     first_minute: bool,
     new_minute: bool,
-    act_len: u32,
-    sec_len: u32,
-    split_second: bool,
+    new_second: bool,
     second: u8,
     bit_buffer: [Option<bool>; 60],
     radio_datetime: RadioDateTimeUtils,
@@ -28,30 +27,26 @@ pub struct DCF77Utils {
     parity_1: Option<bool>,
     parity_2: Option<bool>,
     parity_3: Option<bool>,
-    frame_counter: u8,
-    ticks_per_second: u8,
-    ind_time: bool,
+    // below for handle_new_edge()
+    before_first_edge: bool,
+    t0: u32,
 }
 
 impl DCF77Utils {
-    pub fn new(tps: u8) -> Self {
+    pub fn new() -> Self {
         Self {
-            before_first_edge: true,
             first_minute: true,
             new_minute: false,
-            act_len: 0,
-            sec_len: 0,
+            new_second: false,
             second: 0,
-            split_second: false,
             bit_buffer: [None; 60],
             radio_datetime: RadioDateTimeUtils::new(7),
             leap_second_is_one: None,
             parity_1: None,
             parity_2: None,
             parity_3: None,
-            frame_counter: 0,
-            ticks_per_second: tps,
-            ind_time: true,
+            before_first_edge: true,
+            t0: 0,
         }
     }
 
@@ -63,6 +58,11 @@ impl DCF77Utils {
     /// Return if a new minute has arrived.
     pub fn get_new_minute(&self) -> bool {
         self.new_minute
+    }
+
+    /// Return if a new second has arrived.
+    pub fn get_new_second(&self) -> bool {
+        self.new_second
     }
 
     /// Get the second counter.
@@ -127,59 +127,41 @@ impl DCF77Utils {
         self.bit_buffer[20]
     }
 
-    /// Get the frame-in-second counter.
-    pub fn get_frame_counter(&self) -> u8 {
-        self.frame_counter
-    }
-
-    /// Return if the time (i.e. new second or minute) indicator is active.
-    pub fn get_ind_time(&self) -> bool {
-        self.ind_time
-    }
-
     /**
      * Determine the bit value if a new edge is received. indicates reception errors,
      * and checks if a new minute has started.
      *
+     * This function can deal with spikes, which are arbitrarily set to `SPIKE_LIMIT` microseconds.
+     *
      * # Arguments
      * * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
      *                   low-to-high).
-     * * `t0` - time stamp of the previously received edge, in microseconds
-     * * `t1` - time stamp of the currently received edge, in microseconds
+     * * `t` - time stamp of the received edge, in microseconds
      */
-    pub fn handle_new_edge(&mut self, is_low_edge: bool, t0: u32, t1: u32) {
+    pub fn handle_new_edge(&mut self, is_low_edge: bool, t: u32) {
         if self.before_first_edge {
             self.before_first_edge = false;
+            self.t0 = t;
             return;
         }
-        let t_diff = radio_datetime_utils::time_diff(t0, t1);
-        self.sec_len += t_diff;
+        let t_diff = radio_datetime_utils::time_diff(self.t0, t);
+        if t_diff < SPIKE_LIMIT {
+            return; // random positive or negative spike, ignore
+        }
+        self.t0 = t;
         if is_low_edge {
-            self.bit_buffer[self.second as usize] = Some(false);
-            if self.frame_counter < 4 * self.ticks_per_second / 10 {
-                // suppress noise in case a bit got split
-                self.act_len += t_diff;
-            }
-            if self.act_len > ACTIVE_LIMIT {
-                self.bit_buffer[self.second as usize] = Some(true);
-                if self.act_len > 2 * ACTIVE_LIMIT {
-                    self.bit_buffer[self.second as usize] = None;
-                }
-            }
-        } else if self.sec_len > PASSIVE_LIMIT {
-            self.act_len = 0;
-            self.sec_len = 0;
-        } else if self.sec_len > SECOND_LIMIT {
-            self.ind_time = true;
-            self.new_minute = self.sec_len > MINUTE_LIMIT;
-            self.act_len = 0;
-            self.sec_len = 0;
-            if !self.split_second {
-                self.frame_counter = 0;
-            }
-            self.split_second = false;
+            self.new_second = false;
+            self.bit_buffer[self.second as usize] = if t_diff < ACTIVE_LIMIT {
+                Some(false)
+            } else if t_diff < ACTIVE_RUNAWAY {
+                Some(true)
+            } else {
+                None
+            };
+        } else if t_diff < PASSIVE_RUNAWAY {
+            self.new_minute = t_diff > MINUTE_LIMIT;
+            self.new_second = true;
         } else {
-            self.split_second = true;
             self.bit_buffer[self.second as usize] = None;
         }
     }
@@ -224,26 +206,6 @@ impl DCF77Utils {
             if self.second == self.get_minute_length() + 1 {
                 self.second = 0;
             }
-        }
-    }
-
-    /// Update the frame counter and the status of the time, bit, and error indicators when a
-    /// new timer tick arrives. Calculate the current date ane time upon a new minute.
-    pub fn handle_new_timer_tick(&mut self) {
-        if self.frame_counter == 0 {
-            self.ind_time = true;
-            if self.new_minute {
-                self.decode_time();
-            }
-        } else if (self.frame_counter == self.ticks_per_second / 10 && !self.new_minute)
-            || (self.frame_counter == 7 * self.ticks_per_second / 10 && self.new_minute)
-        {
-            self.ind_time = false;
-        }
-        if self.frame_counter == self.ticks_per_second {
-            self.frame_counter = 0;
-        } else {
-            self.frame_counter += 1;
         }
     }
 
