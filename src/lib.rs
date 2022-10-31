@@ -263,7 +263,7 @@ impl DCF77Utils {
     }
 
     /// Decode the time broadcast during the last minute.
-    fn decode_time(&mut self) {
+    pub fn decode_time(&mut self) {
         let mut added_minute = false;
         if !self.first_minute {
             added_minute = self.radio_datetime.add_minute();
