@@ -64,12 +64,11 @@ impl DCF77Utils {
         self.new_minute
     }
 
-    /// Force the arrival of a new minute and reset the second counter to 0.
+    /// Force the arrival of a new minute.
     ///
     /// This could be useful when reading from a log file.
     pub fn set_new_minute(&mut self) {
         self.new_minute = true;
-        self.second = 0;
     }
 
     /// Return if a new second has arrived.
@@ -112,7 +111,7 @@ impl DCF77Utils {
         self.bit_buffer[self.second as usize]
     }
 
-    /// Set the value of the current bit.
+    /// Set the value of the current bit and clear the flag indicating arrival of a new minute.
     ///
     /// This could be useful when reading from a log file.
     ///
@@ -120,6 +119,7 @@ impl DCF77Utils {
     /// * `value` - the value to set the current bit to
     pub fn set_current_bit(&mut self, value: Option<bool>) {
         self.bit_buffer[self.second as usize] = value;
+        self.new_minute = false;
     }
 
     /// Get the value of bit 0 (must always be 0).
