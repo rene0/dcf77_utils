@@ -67,7 +67,7 @@ impl DCF77Utils {
     /// Force the arrival of a new minute.
     ///
     /// This could be useful when reading from a log file.
-    pub fn set_new_minute(&mut self) {
+    pub fn force_new_minute(&mut self) {
         self.new_minute = true;
     }
 
