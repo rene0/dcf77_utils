@@ -347,7 +347,7 @@ mod tests {
         false, true, false, // regular DST
         false, // no leap second announcement
         true, // 1
-        false, true, true, false, false, false, true, true, // minute 46 + parity
+        false, false, false, true, true, false, true, true, // minute 58 + parity
         false, true, true, false, true, false, true, // hour 16 + parity
         false, true, false, false, false, true, // day 22
         false, true, true, // Saturday
@@ -404,7 +404,7 @@ mod tests {
         }
         dcf77.decode_time();
         // we should have a valid decoding:
-        assert_eq!(dcf77.radio_datetime.get_minute(), Some(46));
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(58));
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(16));
         assert_eq!(dcf77.radio_datetime.get_weekday(), Some(6));
         assert_eq!(dcf77.radio_datetime.get_day(), Some(22));
@@ -454,9 +454,9 @@ mod tests {
         }
         dcf77.decode_time();
         dcf77.first_minute = false;
-        // minute 46 is really cool, so do not update bit 21 (and 28)
+        // minute 58 is really cool, so do not update bit 21 (and 28)
         dcf77.decode_time();
-        assert_eq!(dcf77.radio_datetime.get_minute(), Some(46));
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(58));
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(16));
         assert_eq!(dcf77.radio_datetime.get_weekday(), Some(6));
         assert_eq!(dcf77.radio_datetime.get_day(), Some(22));
@@ -493,7 +493,7 @@ mod tests {
         dcf77.bit_buffer[26] = Some(!dcf77.bit_buffer[26].unwrap());
         dcf77.bit_buffer[39] = None;
         dcf77.decode_time();
-        assert_eq!(dcf77.radio_datetime.get_minute(), Some(47)); // bad parity
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(59)); // bad parity
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(16));
         assert_eq!(dcf77.radio_datetime.get_weekday(), Some(6)); // broken parity
         assert_eq!(dcf77.radio_datetime.get_day(), Some(22)); // broken bit
@@ -524,12 +524,6 @@ mod tests {
         // leap second must be at top of hour and
         // announcements only count before the hour, so set minute to 59:
         dcf77.bit_buffer[21] = Some(true);
-        dcf77.bit_buffer[22] = Some(false);
-        dcf77.bit_buffer[23] = Some(false);
-        dcf77.bit_buffer[24] = Some(true);
-        dcf77.bit_buffer[25] = Some(true);
-        dcf77.bit_buffer[26] = Some(false);
-        dcf77.bit_buffer[27] = Some(true);
         dcf77.bit_buffer[28] = Some(false);
         // announce a leap second:
         dcf77.bit_buffer[19] = Some(true);
@@ -584,12 +578,6 @@ mod tests {
         // DST change must be at top of hour and
         // announcements only count before the hour, so set minute to 59:
         dcf77.bit_buffer[21] = Some(true);
-        dcf77.bit_buffer[22] = Some(false);
-        dcf77.bit_buffer[23] = Some(false);
-        dcf77.bit_buffer[24] = Some(true);
-        dcf77.bit_buffer[25] = Some(true);
-        dcf77.bit_buffer[26] = Some(false);
-        dcf77.bit_buffer[27] = Some(true);
         dcf77.bit_buffer[28] = Some(false);
         // announce a DST change:
         dcf77.bit_buffer[16] = Some(true);
