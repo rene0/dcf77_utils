@@ -513,7 +513,7 @@ mod tests {
         assert_eq!(dcf77.radio_datetime.get_jump_year(), false);
     }
     #[test]
-    fn continue_decode_time_complete_minute_leap_second_is_one() {
+    fn continue2_decode_time_complete_minute_leap_second_is_one() {
         let mut dcf77 = DCF77Utils::default();
         dcf77.second = 59;
         assert_eq!(dcf77.get_this_minute_length(), dcf77.second); // sanity check
@@ -562,6 +562,19 @@ mod tests {
         assert_eq!(dcf77.get_this_minute_length(), 60);
         assert_eq!(dcf77.get_next_minute_length(), 59);
         assert_eq!(dcf77.get_leap_second_is_one(), Some(true));
+
+        // next regular minute:
+        dcf77.bit_buffer[19] = Some(false);
+        dcf77.bit_buffer[21] = Some(true);
+        dcf77.bit_buffer[28] = Some(true);
+        // dcf77.bit_buffer[59] remains Some() but is never touched again
+        dcf77.second = 59;
+        dcf77.decode_time();
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(1));
+        assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
+        assert_eq!(dcf77.second, 59); // sanity check
+        assert_eq!(dcf77.get_this_minute_length(), 59);
+        assert_eq!(dcf77.get_next_minute_length(), 59);
     }
     #[test]
     fn continue_decode_time_complete_minute_dst_change() {
