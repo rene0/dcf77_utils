@@ -534,7 +534,7 @@ mod tests {
         // announce a leap second:
         dcf77.bit_buffer[19] = Some(true);
         dcf77.decode_time();
-        assert_eq!(dcf77.radio_datetime.get_minute(), Some(59));
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(59)); // sanity check
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(LEAP_ANNOUNCED));
         assert_eq!(dcf77.second, 59);
         assert_eq!(dcf77.get_this_minute_length(), 59);
@@ -548,9 +548,7 @@ mod tests {
         dcf77.bit_buffer[29] = Some(true);
         dcf77.bit_buffer[35] = Some(false);
         // which will have a leap second:
-        dcf77.bit_buffer[19] = Some(true); // not sure but should not matter
-                                           // which has value 1 instead of 0:
-        dcf77.bit_buffer[59] = Some(true);
+        dcf77.bit_buffer[59] = Some(true); // which has value 1 instead of 0
         dcf77.second = 60; // 60 bits (61 seconds here, before decoding)
 
         // leave dcf77.fist_minute true on purpose to catch minute-length bugs
@@ -609,7 +607,6 @@ mod tests {
         dcf77.bit_buffer[29] = Some(true);
         dcf77.bit_buffer[35] = Some(false);
         // which will have a DST change:
-        dcf77.bit_buffer[16] = Some(true); // not sure but should not matter
         dcf77.bit_buffer[17] = Some(false);
         dcf77.bit_buffer[18] = Some(true);
         // leave dcf77.fist_minute true on purpose to catch minute-length bugs
