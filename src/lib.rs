@@ -397,6 +397,15 @@ mod tests {
         assert_eq!(dcf77.new_minute, false);
         assert_eq!(dcf77.get_current_bit(), Some(false));
     }
+    #[test]
+    fn test_new_edge_bit_1() {}
+    #[test]
+    fn test_new_edge_minute() {}
+    #[test]
+    fn test_new_edge_active_runaway() {}
+    #[test]
+    fn test_new_edge_passive_runaway() {}
+    // TODO test distortions (SPIKE_LIMIT)
 
     #[test]
     fn test_decode_time_incomplete_minute() {
