@@ -375,9 +375,27 @@ mod tests {
         assert_eq!(dcf77.get_third_party_buffer(), None); // contains a None value
     }
 
+    // is_low_edge, microseconds
+    const EDGE_BUFFER: [(bool, u32); 3] = [(true, 23456), (false, 83456), (true, 183456)];
     #[test]
-    fn test_new_edge() {
-        // TODO implement
+    fn test_new_edge_bit_0() {
+        let mut dcf77 = DCF77Utils::default();
+        assert_eq!(dcf77.before_first_edge, true);
+        dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(dcf77.before_first_edge, false);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[0].1); // very first edge
+
+        dcf77.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(dcf77.t0, EDGE_BUFFER[1].1); // longer than a spike
+        assert_eq!(dcf77.new_second, true);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), None); // not yet determined
+
+        dcf77.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(dcf77.new_second, false);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), Some(false));
     }
 
     #[test]
