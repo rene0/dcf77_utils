@@ -170,6 +170,8 @@ impl DCF77Utils {
         }
         let t_diff = time_diff(self.t0, t);
         if t_diff < SPIKE_LIMIT {
+            // Shift t0 to deal with a train of spikes adding up to more than `SPIKE_LIMIT` microseconds.
+            self.t0 += t_diff;
             return; // random positive or negative spike, ignore
         }
         self.t0 = t;
@@ -337,7 +339,7 @@ impl Default for DCF77Utils {
 mod tests {
     use crate::DCF77Utils;
     use radio_datetime_utils::{
-        DST_ANNOUNCED, DST_PROCESSED, DST_SUMMER, LEAP_ANNOUNCED, LEAP_PROCESSED,
+        time_diff, DST_ANNOUNCED, DST_PROCESSED, DST_SUMMER, LEAP_ANNOUNCED, LEAP_PROCESSED,
     };
 
     const BIT_BUFFER: [bool; 59 /* EOM not included */] = [
@@ -376,36 +378,178 @@ mod tests {
     }
 
     // is_low_edge, microseconds
-    const EDGE_BUFFER: [(bool, u32); 3] = [(true, 23456), (false, 83456), (true, 183456)];
+    const EDGE_BUFFER: [(bool, u32); 45] = [
+        (!true, 361_879_281),
+        (!false, 361_997_291),
+        (!true, 362_879_580),
+        (!false, 363_096_452), // 216_872 us
+        (!true, 363_879_672),
+        (!false, 364_093_182),
+        (!true, 364_879_423),
+        (!false, 365_096_069),
+        (!true, 365_879_306),
+        (!false, 366_097_734),
+        (!true, 366_879_141),
+        (!false, 366_993_436), // 114_295 us
+        (!true, 367_879_221),
+        (!false, 368_099_661),
+        (!true, 368_879_146),
+        (!false, 368_996_226),
+        (!true, 369_879_447),
+        (!false, 370_099_158),
+        (!true, 370_879_175),
+        (!true, 418_879_016),
+        (!false, 418_994_860),
+        (!true, 419_878_222),
+        // new minute, Some(false) bit value
+        (!false, 419_994_127),
+        (!true, 421879420), // 1_885_293 us
+        (!false, 421_993_909),
+        // active runaway (broken bit)
+        (!false, 3_303_417_788),
+        (!true, 3_304_200_237),
+        (!false, 3_304_674_788), // 474_551 us
+        (!true, 3_305_206_667),  // 531_879 us
+        (!false, 3_305_318_414),
+        (!true, 3_306_206_857),
+        // spikes (also lot of same-edge transitions)
+        (!true, 111_141_523),
+        (!false, 111_256_572), // 115_049 us
+        (!true, 111_286_015),  // 29_443 us
+        (!false, 111_286_025), // 10 us
+        (!true, 111_286_651),  // 626 us
+        (!false, 111_286_683), // 32 us
+        (!true, 111_286_815),  // 132 us
+        (!false, 111_286_873), // 58 us
+        (!true, 111_286_977),  // 104 us
+        (!false, 111_287_012), // 35 us
+        (!true, 112_141_743),  // 854_731 us
+        (!false, 112_359_105), // 217_362 us
+        (!true, 113_141_411),  // 782_306 us
+        (!false, 113_257_099), // 115_688 us
+    ];
+
     #[test]
     fn test_new_edge_bit_0() {
         let mut dcf77 = DCF77Utils::default();
         assert_eq!(dcf77.before_first_edge, true);
-        dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        dcf77.handle_new_edge(EDGE_BUFFER[9].0, EDGE_BUFFER[9].1);
         assert_eq!(dcf77.before_first_edge, false);
-        assert_eq!(dcf77.t0, EDGE_BUFFER[0].1); // very first edge
+        assert_eq!(dcf77.t0, EDGE_BUFFER[9].1); // very first edge
 
-        dcf77.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
-        assert_eq!(dcf77.t0, EDGE_BUFFER[1].1); // longer than a spike
+        dcf77.handle_new_edge(EDGE_BUFFER[10].0, EDGE_BUFFER[10].1); // first significant edge
+        assert_eq!(dcf77.t0, EDGE_BUFFER[10].1); // longer than a spike
         assert_eq!(dcf77.new_second, true);
         assert_eq!(dcf77.new_minute, false);
         assert_eq!(dcf77.get_current_bit(), None); // not yet determined
 
-        dcf77.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        dcf77.handle_new_edge(EDGE_BUFFER[11].0, EDGE_BUFFER[11].1);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[11].1); // longer than a spike
+        assert_eq!(dcf77.new_second, false);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), Some(false)); // 114_295 microseconds
+    }
+    #[test]
+    fn test_new_edge_bit_1() {
+        let mut dcf77 = DCF77Utils::default();
+        assert_eq!(dcf77.before_first_edge, true);
+        dcf77.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1);
+        assert_eq!(dcf77.before_first_edge, false);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[1].1); // very first edge
+
+        dcf77.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1); // first significant edge
         assert_eq!(dcf77.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(dcf77.new_second, true);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), None); // not yet determined
+
+        dcf77.handle_new_edge(EDGE_BUFFER[3].0, EDGE_BUFFER[3].1);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[3].1); // longer than a spike
+        assert_eq!(dcf77.new_second, false);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), Some(true)); // 216_872 microseconds
+    }
+    #[test]
+    fn test_new_edge_minute() {
+        let mut dcf77 = DCF77Utils::default();
+        assert_eq!(dcf77.before_first_edge, true);
+        dcf77.handle_new_edge(EDGE_BUFFER[21].0, EDGE_BUFFER[21].1);
+        assert_eq!(dcf77.before_first_edge, false);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[21].1); // very first edge
+
+        dcf77.handle_new_edge(EDGE_BUFFER[22].0, EDGE_BUFFER[22].1); // first significant edge
+        assert_eq!(dcf77.t0, EDGE_BUFFER[22].1); // longer than a spike
         assert_eq!(dcf77.new_second, false);
         assert_eq!(dcf77.new_minute, false);
         assert_eq!(dcf77.get_current_bit(), Some(false));
+
+        dcf77.handle_new_edge(EDGE_BUFFER[23].0, EDGE_BUFFER[23].1);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[23].1); // longer than a spike
+        assert_eq!(dcf77.new_second, true);
+        assert_eq!(dcf77.new_minute, true);
+        assert_eq!(dcf77.get_current_bit(), Some(false)); // 1_885_293 microseconds, keeps bit value
     }
     #[test]
-    fn test_new_edge_bit_1() {}
+    fn test_new_edge_active_runaway() {
+        let mut dcf77 = DCF77Utils::default();
+        assert_eq!(dcf77.before_first_edge, true);
+        dcf77.handle_new_edge(EDGE_BUFFER[25].0, EDGE_BUFFER[25].1);
+        assert_eq!(dcf77.before_first_edge, false);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[25].1); // very first edge
+
+        dcf77.handle_new_edge(EDGE_BUFFER[26].0, EDGE_BUFFER[26].1); // first significant edge
+        assert_eq!(dcf77.t0, EDGE_BUFFER[26].1); // longer than a spike
+        assert_eq!(dcf77.new_second, true);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), None); // not yet determined
+
+        dcf77.handle_new_edge(EDGE_BUFFER[27].0, EDGE_BUFFER[27].1);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[27].1); // longer than a spike
+        assert_eq!(dcf77.new_second, false);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), None); // 474_551 microseconds
+    }
     #[test]
-    fn test_new_edge_minute() {}
+    fn test_new_edge_passive_runaway() {
+        // no data yet
+    }
     #[test]
-    fn test_new_edge_active_runaway() {}
-    #[test]
-    fn test_new_edge_passive_runaway() {}
-    // TODO test distortions (SPIKE_LIMIT)
+    fn test_new_edge_spikes() {
+        let mut dcf77 = DCF77Utils::default();
+        assert_eq!(dcf77.before_first_edge, true);
+        dcf77.handle_new_edge(EDGE_BUFFER[31].0, EDGE_BUFFER[31].1);
+        assert_eq!(dcf77.before_first_edge, false);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[31].1); // very first edge
+
+        dcf77.handle_new_edge(EDGE_BUFFER[32].0, EDGE_BUFFER[32].1); // first significant edge
+        assert_eq!(dcf77.t0, EDGE_BUFFER[32].1); // longer than a spike
+        assert_eq!(dcf77.new_second, false);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), Some(false)); // 115_049
+
+        // Feed a bunch of spikes ( <SPIKE_LIMIT us), nothing should happen
+        let mut spike = dcf77.t0;
+        for i in 33..=40 {
+            spike += time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
+            dcf77.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
+            assert_eq!(dcf77.t0, spike);
+            assert_eq!(dcf77.new_second, false);
+            assert_eq!(dcf77.new_minute, false);
+            assert_eq!(dcf77.get_current_bit(), Some(false));
+        }
+        dcf77.handle_new_edge(EDGE_BUFFER[41].0, EDGE_BUFFER[41].1);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[41].1); // longer than a spike
+        assert_eq!(dcf77.new_second, true);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), Some(false)); // 854_731 microseconds, keep bit value
+
+        // A 1-bit should arrive next:
+        dcf77.handle_new_edge(EDGE_BUFFER[42].0, EDGE_BUFFER[42].1);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[42].1); // longer than a spike
+        assert_eq!(dcf77.new_second, false);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), Some(true)); // 217_362 microseconds
+    }
 
     #[test]
     fn test_decode_time_incomplete_minute() {
