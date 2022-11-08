@@ -184,11 +184,15 @@ impl DCF77Utils {
             } else {
                 None
             };
-        } else if t_diff < PASSIVE_RUNAWAY {
-            self.new_minute = t_diff > MINUTE_LIMIT;
+        } else if t_diff > PASSIVE_RUNAWAY {
+            self.bit_buffer[self.second as usize] = None;
+        } else if t_diff > MINUTE_LIMIT {
+            self.bit_buffer[self.second as usize] = None; // missing EOM bit or runaway
+            self.new_minute = true;
             self.new_second = true;
         } else {
-            self.bit_buffer[self.second as usize] = None;
+            self.new_minute = false;
+            self.new_second = true;
         }
     }
 
@@ -487,7 +491,7 @@ mod tests {
         assert_eq!(dcf77.t0, EDGE_BUFFER[23].1); // longer than a spike
         assert_eq!(dcf77.new_second, true);
         assert_eq!(dcf77.new_minute, true);
-        assert_eq!(dcf77.get_current_bit(), Some(false)); // 1_885_293 microseconds, keeps bit value
+        assert_eq!(dcf77.get_current_bit(), None); // 1_885_293 microseconds, end-of-minute marker
     }
     #[test]
     fn test_new_edge_active_runaway() {
