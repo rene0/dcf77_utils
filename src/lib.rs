@@ -67,6 +67,8 @@ impl DCF77Utils {
     /// Force the arrival of a new minute.
     ///
     /// This could be useful when reading from a log file.
+    ///
+    /// This method must be called _before_ `increase_second()`
     pub fn force_new_minute(&mut self) {
         self.new_minute = true;
     }
@@ -114,6 +116,8 @@ impl DCF77Utils {
     /// Set the value of the current bit and clear the flag indicating arrival of a new minute.
     ///
     /// This could be useful when reading from a log file.
+    ///
+    /// This method must be called _before_ `increase_second()`
     ///
     /// # Arguments
     /// * `value` - the value to set the current bit to
@@ -226,7 +230,8 @@ impl DCF77Utils {
 
     /// Increase or reset `second` and clear `first_minute` when appropriate.
     ///
-    /// This method must be called _after_ `decode_time()` and `handle_new_edge()`
+    /// This method must be called _after_ `decode_time()`, `handle_new_edge()`,
+    /// `set_current_bit()`, and `force_new_minute()`.
     pub fn increase_second(&mut self) {
         let minute_length = self.get_next_minute_length();
         if self.new_minute {
