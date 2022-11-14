@@ -510,7 +510,29 @@ mod tests {
     }
     #[test]
     fn test_new_edge_passive_runaway() {
-        // no data yet
+        const EDGE_BUFFER: [(bool, u32); 3] = [
+            // passive runaway (transmitter outage)
+            (!true, 2_917_778_338),
+            (!false, 2_917_791_465),
+            (!true, 2_920_614_145),
+        ];
+        let mut dcf77 = DCF77Utils::default();
+        assert_eq!(dcf77.before_first_edge, true);
+        dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
+        assert_eq!(dcf77.before_first_edge, false);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[0].1); // very first edge
+
+        dcf77.handle_new_edge(EDGE_BUFFER[1].0, EDGE_BUFFER[1].1); // first significant edge
+        assert_eq!(dcf77.t0, EDGE_BUFFER[1].1); // actually a spike
+        assert_eq!(dcf77.new_second, false);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), None); // not yet determined, passive part
+
+        dcf77.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
+        assert_eq!(dcf77.t0, EDGE_BUFFER[2].1); // longer than a spike
+        assert_eq!(dcf77.new_second, false);
+        assert_eq!(dcf77.new_minute, false);
+        assert_eq!(dcf77.get_current_bit(), None); // 2_822_680 microseconds
     }
     #[test]
     fn test_new_edge_spikes() {
