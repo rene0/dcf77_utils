@@ -186,12 +186,12 @@ impl DCF77Utils {
             } else if t_diff < ACTIVE_RUNAWAY {
                 Some(true)
             } else {
-                None
+                None // broken bit
             };
         } else if t_diff > PASSIVE_RUNAWAY {
-            self.bit_buffer[self.second as usize] = None;
+            self.bit_buffer[self.second as usize] = None; // runaway, transmitter outage?
         } else if t_diff > MINUTE_LIMIT {
-            self.bit_buffer[self.second as usize] = None; // missing EOM bit or runaway
+            self.bit_buffer[self.second as usize] = None; // missing EOM bit marker
             self.new_minute = true;
             self.new_second = true;
         } else {
