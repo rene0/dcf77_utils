@@ -18,13 +18,16 @@ const MINUTE_LIMIT: u32 = 1_500_000;
 /// Signal is considered lost after this many microseconds
 const PASSIVE_RUNAWAY: u32 = 2_500_000;
 
+/// Size of bit buffer in bits.
+const BIT_BUFFER_SIZE:usize = 61;
+
 /// DCF77 decoder class
 pub struct DCF77Utils {
     first_minute: bool,
     new_minute: bool,
     new_second: bool,
     second: u8,
-    bit_buffer: [Option<bool>; 61],
+    bit_buffer: [Option<bool>; BIT_BUFFER_SIZE],
     radio_datetime: RadioDateTimeUtils,
     leap_second_is_one: Option<bool>,
     parity_1: Option<bool>,
@@ -43,7 +46,7 @@ impl DCF77Utils {
             new_minute: false,
             new_second: false,
             second: 0,
-            bit_buffer: [None; 61],
+            bit_buffer: [None; BIT_BUFFER_SIZE],
             radio_datetime: RadioDateTimeUtils::new(7),
             leap_second_is_one: None,
             parity_1: None,
@@ -256,7 +259,7 @@ impl DCF77Utils {
         } else {
             self.second += 1;
             // wrap in case we missed the minute marker to prevent index-out-of-range
-            if self.second == minute_length + 1 {
+            if self.second == minute_length + 1 || (self.second as usize) == BIT_BUFFER_SIZE {
                 self.second = 0;
             }
         }
