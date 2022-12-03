@@ -607,7 +607,7 @@ mod tests {
     #[test]
     fn test_decode_time_complete_minute_ok() {
         let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 59;
+        dcf77.second = 60;
         assert_eq!(dcf77.get_this_minute_length(), dcf77.second);
         assert_eq!(dcf77.get_next_minute_length(), dcf77.second);
         for b in 0..=58 {
@@ -631,7 +631,7 @@ mod tests {
     #[test]
     fn test_decode_time_complete_minute_bad_bits() {
         let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 59;
+        dcf77.second = 60;
         assert_eq!(dcf77.get_this_minute_length(), dcf77.second);
         assert_eq!(dcf77.get_next_minute_length(), dcf77.second);
         for b in 0..=58 {
@@ -657,7 +657,7 @@ mod tests {
     #[test]
     fn continue_decode_time_complete_minute_jumped_values() {
         let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 59;
+        dcf77.second = 60;
         assert_eq!(dcf77.get_this_minute_length(), dcf77.second);
         assert_eq!(dcf77.get_next_minute_length(), dcf77.second);
         for b in 0..=58 {
@@ -689,7 +689,7 @@ mod tests {
     #[test]
     fn continue_decode_time_complete_minute_bad_bits() {
         let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 59;
+        dcf77.second = 60;
         assert_eq!(dcf77.get_this_minute_length(), dcf77.second);
         assert_eq!(dcf77.get_next_minute_length(), dcf77.second);
         for b in 0..=58 {
@@ -726,7 +726,7 @@ mod tests {
     #[test]
     fn continue2_decode_time_complete_minute_leap_second_is_one() {
         let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 59;
+        dcf77.second = 60;
         assert_eq!(dcf77.get_this_minute_length(), dcf77.second); // sanity check
         assert_eq!(dcf77.get_next_minute_length(), dcf77.second); // sanity check
         for b in 0..=58 {
@@ -741,9 +741,9 @@ mod tests {
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(59)); // sanity check
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(LEAP_ANNOUNCED));
-        assert_eq!(dcf77.second, 59);
-        assert_eq!(dcf77.get_this_minute_length(), 59);
-        assert_eq!(dcf77.get_next_minute_length(), 60);
+        assert_eq!(dcf77.second, 60);
+        assert_eq!(dcf77.get_this_minute_length(), 60);
+        assert_eq!(dcf77.get_next_minute_length(), 61);
 
         // next minute and hour:
         dcf77.bit_buffer[21] = Some(false);
@@ -754,16 +754,16 @@ mod tests {
         dcf77.bit_buffer[35] = Some(false);
         // which will have a leap second:
         dcf77.bit_buffer[59] = Some(true); // which has value 1 instead of 0
-        dcf77.second = 60; // 60 bits (61 seconds here, before decoding)
+        dcf77.second = 61; // 60 bits (61 seconds here, before decoding)
 
         // leave dcf77.fist_minute true on purpose to catch minute-length bugs
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(0));
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(17));
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(LEAP_PROCESSED));
-        assert_eq!(dcf77.second, 60);
-        assert_eq!(dcf77.get_this_minute_length(), 60);
-        assert_eq!(dcf77.get_next_minute_length(), 59);
+        assert_eq!(dcf77.second, 61);
+        assert_eq!(dcf77.get_this_minute_length(), 61);
+        assert_eq!(dcf77.get_next_minute_length(), 60);
         assert_eq!(dcf77.get_leap_second_is_one(), Some(true));
 
         // next regular minute:
@@ -771,18 +771,18 @@ mod tests {
         dcf77.bit_buffer[21] = Some(true);
         dcf77.bit_buffer[28] = Some(true);
         // dcf77.bit_buffer[59] remains Some() but is never touched again
-        dcf77.second = 59;
+        dcf77.second = 60;
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(1));
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
-        assert_eq!(dcf77.second, 59); // sanity check
-        assert_eq!(dcf77.get_this_minute_length(), 59);
-        assert_eq!(dcf77.get_next_minute_length(), 59);
+        assert_eq!(dcf77.second, 60); // sanity check
+        assert_eq!(dcf77.get_this_minute_length(), 60);
+        assert_eq!(dcf77.get_next_minute_length(), 60);
     }
     #[test]
     fn continue_decode_time_complete_minute_dst_change() {
         let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 59;
+        dcf77.second = 60;
         for b in 0..=58 {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
@@ -827,7 +827,7 @@ mod tests {
     #[test]
     fn test_increase_second_same_minute_overflow() {
         let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 59;
+        dcf77.second = 60;
         // leap second value is None
         dcf77.increase_second();
         assert_eq!(dcf77.first_minute, true);
@@ -837,7 +837,7 @@ mod tests {
     fn test_increase_second_new_minute_ok() {
         let mut dcf77 = DCF77Utils::default();
         dcf77.new_minute = true;
-        dcf77.second = 59;
+        dcf77.second = 60;
         dcf77.bit_buffer[0] = Some(false);
         dcf77.bit_buffer[20] = Some(true);
         dcf77.radio_datetime.set_year(Some(22), true, false);
@@ -856,7 +856,7 @@ mod tests {
     fn test_increase_second_new_minute_none_values() {
         let mut dcf77 = DCF77Utils::default();
         dcf77.new_minute = true;
-        dcf77.second = 59;
+        dcf77.second = 60;
         // all date/time values left None
         dcf77.increase_second();
         assert_eq!(dcf77.first_minute, true);
