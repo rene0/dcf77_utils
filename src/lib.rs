@@ -205,31 +205,31 @@ impl DCF77Utils {
         }
     }
 
-    /// Determine the length of _this_ minute in bits, tolerate None as leap second state.
+    /// Determine the length of _this_ minute in seconds, tolerate None as leap second state.
     pub fn get_this_minute_length(&self) -> u8 {
         if let Some(s_leap_second) = self.radio_datetime.get_leap_second() {
             if (s_leap_second & LEAP_PROCESSED) != 0 {
-                60
+                61
             } else {
-                59
+                60
             }
         } else {
-            59
+            60
         }
     }
 
-    /// Determine the length of _the next_ minute in bits, tolerate None as a leap second state.
+    /// Determine the length of _the next_ minute in seconds, tolerate None as a leap second state.
     pub fn get_next_minute_length(&self) -> u8 {
         if let Some(s_leap_second) = self.radio_datetime.get_leap_second() {
             if (self.radio_datetime.get_minute() == Some(59))
                 && ((s_leap_second & LEAP_ANNOUNCED) != 0)
             {
-                60
+                61
             } else {
-                59
+                60
             }
         } else {
-            59
+            60
         }
     }
 
@@ -329,9 +329,8 @@ impl DCF77Utils {
                 added_minute && !self.first_minute,
             );
 
-            // set_leap_second() wants minute length in seconds
             self.radio_datetime
-                .set_leap_second(self.bit_buffer[19], minute_length + 1);
+                .set_leap_second(self.bit_buffer[19], minute_length);
             self.leap_second_is_one = None;
             let leap_second = self.radio_datetime.get_leap_second();
             if leap_second.is_some() && (leap_second.unwrap() & LEAP_PROCESSED) != 0 {
