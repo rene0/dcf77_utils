@@ -199,7 +199,9 @@ impl DCF77Utils {
                 self.new_second = t_diff > 1_000_000 - ACTIVE_RUNAWAY;
             }
             if t_diff > MINUTE_LIMIT {
-                // missing EOM bit marker or passive runaway
+                // Missing EOM bit marker or passive runaway.
+                // The first case works because our caller advanced self.second and
+                // only affects the EOM bit because of the value of MINUTE_LIMIT.
                 self.bit_buffer[self.second as usize] = None;
             }
         }
