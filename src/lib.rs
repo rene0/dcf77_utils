@@ -21,6 +21,17 @@ const PASSIVE_RUNAWAY: u32 = 2_500_000;
 /// Size of bit buffer in bits plus one spare because we cannot know which method accessing the buffer is called after increase_second().
 const BIT_BUFFER_SIZE: usize = 61 + 1;
 
+fn get_binary_value(bit_buffer: &[Option<bool>], start: usize, stop: usize) -> Option<u16> {
+    let mut val = 0;
+    let mut mult = 1;
+    for b in &bit_buffer[start..=stop] {
+        (*b)?;
+        val += mult * b.unwrap() as u16;
+        mult *= 2;
+    }
+    Some(val)
+}
+
 /// DCF77 decoder class
 pub struct DCF77Utils {
     first_minute: bool,
@@ -33,6 +44,10 @@ pub struct DCF77Utils {
     parity_1: Option<bool>,
     parity_2: Option<bool>,
     parity_3: Option<bool>,
+    bit_0: Option<bool>,
+    third_party: Option<u16>,
+    call_bit: Option<bool>,
+    bit_20: Option<bool>,
     // below for handle_new_edge()
     before_first_edge: bool,
     t0: u32,
@@ -52,6 +67,10 @@ impl DCF77Utils {
             parity_1: None,
             parity_2: None,
             parity_3: None,
+            bit_0: None,
+            third_party: None,
+            call_bit: None,
+            bit_20: None,
             before_first_edge: true,
             t0: 0,
         }
@@ -131,29 +150,22 @@ impl DCF77Utils {
 
     /// Get the value of bit 0 (must always be 0).
     pub fn get_bit_0(&self) -> Option<bool> {
-        self.bit_buffer[0]
+        self.bit_0
     }
 
     /// Get the value of the third-party buffer, a 14-bit number with the least significant bit first.
     pub fn get_third_party_buffer(&self) -> Option<u16> {
-        let mut val = 0;
-        let mut mult = 1;
-        for b in &self.bit_buffer[1..=14] {
-            (*b)?;
-            val += mult * b.unwrap() as u16;
-            mult *= 2;
-        }
-        Some(val)
+        self.third_party
     }
 
     /// Get the value of the transmitter call bit.
     pub fn get_call_bit(&self) -> Option<bool> {
-        self.bit_buffer[15]
+        self.call_bit
     }
 
     /// Get the value of bit 20 (must always be 1).
     pub fn get_bit_20(&self) -> Option<bool> {
-        self.bit_buffer[20]
+        self.bit_20
     }
 
     /**
@@ -244,8 +256,8 @@ impl DCF77Utils {
         if self.new_minute {
             if self.first_minute
                 && self.second == minute_length
-                && self.bit_buffer[0] == Some(false)
-                && self.bit_buffer[20] == Some(true)
+                && self.bit_0 == Some(false)
+                && self.bit_20 == Some(true)
                 && self.radio_datetime.get_dst().is_some()
                 && self.radio_datetime.get_year().is_some()
                 && self.radio_datetime.get_month().is_some()
@@ -277,6 +289,11 @@ impl DCF77Utils {
             added_minute = self.radio_datetime.add_minute();
         }
         if self.second == minute_length {
+            self.bit_0 = self.bit_buffer[0];
+            self.third_party = get_binary_value(&self.bit_buffer, 1, 14);
+            self.call_bit = self.bit_buffer[15];
+            self.bit_20 = self.bit_buffer[20];
+
             self.parity_1 = get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
             self.radio_datetime.set_minute(
                 get_bcd_value(&self.bit_buffer, 21, 27),
