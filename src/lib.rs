@@ -392,24 +392,6 @@ mod tests {
     ];
 
     #[test]
-    fn test_get_third_party_buffer_ok() {
-        let mut dcf77 = DCF77Utils::default();
-        for b in 1..=14 {
-            dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
-        }
-        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
-    }
-    #[test]
-    fn test_get_third_party_buffer_none() {
-        let mut dcf77 = DCF77Utils::default();
-        for b in 1..=14 {
-            dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
-        }
-        dcf77.bit_buffer[4] = None;
-        assert_eq!(dcf77.get_third_party_buffer(), None); // contains a None value
-    }
-
-    #[test]
     fn test_new_edge_bit_0() {
         const EDGE_BUFFER: [(bool, u32); 4] = [
             // Some(false) bit value
@@ -622,6 +604,10 @@ mod tests {
         dcf77.decode_time();
         // not enough seconds in this minute, so nothing should happen:
         assert_eq!(dcf77.parity_1, None);
+        assert_eq!(dcf77.get_bit_0(), None);
+        assert_eq!(dcf77.get_third_party_buffer(), None);
+        assert_eq!(dcf77.get_call_bit(), None);
+        assert_eq!(dcf77.get_bit_20(), None);
     }
     #[test]
     fn test_decode_time_complete_minute_ok() {
@@ -646,6 +632,10 @@ mod tests {
         assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_SUMMER));
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
         assert_eq!(dcf77.leap_second_is_one, None);
+        assert_eq!(dcf77.get_bit_0(), Some(false));
+        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
+        assert_eq!(dcf77.get_call_bit(), Some(true)); // because why not?
+        assert_eq!(dcf77.get_bit_20(), Some(true));
     }
     #[test]
     fn test_decode_time_complete_minute_bad_bits() {
@@ -672,6 +662,10 @@ mod tests {
         assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_SUMMER));
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
         assert_eq!(dcf77.leap_second_is_one, None);
+        assert_eq!(dcf77.get_bit_0(), Some(false));
+        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
+        assert_eq!(dcf77.get_call_bit(), Some(true)); // because why not?
+        assert_eq!(dcf77.get_bit_20(), Some(true));
     }
     #[test]
     fn continue_decode_time_complete_minute_jumped_values() {
@@ -698,6 +692,10 @@ mod tests {
         assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_SUMMER));
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
         assert_eq!(dcf77.leap_second_is_one, None);
+        assert_eq!(dcf77.get_bit_0(), Some(false));
+        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
+        assert_eq!(dcf77.get_call_bit(), Some(true)); // because why not?
+        assert_eq!(dcf77.get_bit_20(), Some(true));
         assert_eq!(dcf77.radio_datetime.get_jump_minute(), true);
         assert_eq!(dcf77.radio_datetime.get_jump_hour(), false);
         assert_eq!(dcf77.radio_datetime.get_jump_weekday(), false);
@@ -735,6 +733,10 @@ mod tests {
         assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_SUMMER));
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
         assert_eq!(dcf77.leap_second_is_one, None);
+        assert_eq!(dcf77.get_bit_0(), Some(false));
+        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
+        assert_eq!(dcf77.get_call_bit(), Some(true)); // because why not?
+        assert_eq!(dcf77.get_bit_20(), Some(true));
         assert_eq!(dcf77.radio_datetime.get_jump_minute(), false);
         assert_eq!(dcf77.radio_datetime.get_jump_hour(), false);
         assert_eq!(dcf77.radio_datetime.get_jump_weekday(), false);
@@ -857,8 +859,8 @@ mod tests {
         let mut dcf77 = DCF77Utils::default();
         dcf77.new_minute = true;
         dcf77.second = 60;
-        dcf77.bit_buffer[0] = Some(false);
-        dcf77.bit_buffer[20] = Some(true);
+        dcf77.bit_0 = Some(false);
+        dcf77.bit_20 = Some(true);
         dcf77.radio_datetime.set_year(Some(22), true, false);
         dcf77.radio_datetime.set_month(Some(10), true, false);
         dcf77.radio_datetime.set_weekday(Some(6), true, false);
