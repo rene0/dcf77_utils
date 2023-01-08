@@ -3,9 +3,7 @@
 //! Build with no_std for embedded platforms.
 #![cfg_attr(not(test), no_std)]
 
-use radio_datetime_utils::{
-    get_bcd_value, get_parity, time_diff, RadioDateTimeUtils, LEAP_ANNOUNCED, LEAP_PROCESSED,
-};
+use radio_datetime_utils::RadioDateTimeUtils;
 
 /// Default upper limit for spike detection in microseconds
 const SPIKE_LIMIT: u32 = 30_000;
@@ -205,7 +203,7 @@ impl DCF77Utils {
             self.t0 = t;
             return;
         }
-        let t_diff = time_diff(self.t0, t);
+        let t_diff = radio_datetime_utils::time_diff(self.t0, t);
         if t_diff < self.spike_limit {
             // Shift t0 to deal with a train of spikes adding up to more than `spike_limit` microseconds.
             self.t0 += t_diff;
@@ -240,7 +238,7 @@ impl DCF77Utils {
     /// Determine the length of _this_ minute in seconds, tolerate None as leap second state.
     pub fn get_this_minute_length(&self) -> u8 {
         if let Some(s_leap_second) = self.radio_datetime.get_leap_second() {
-            if (s_leap_second & LEAP_PROCESSED) != 0 {
+            if (s_leap_second & radio_datetime_utils::LEAP_PROCESSED) != 0 {
                 61
             } else {
                 60
@@ -254,7 +252,7 @@ impl DCF77Utils {
     pub fn get_next_minute_length(&self) -> u8 {
         if let Some(s_leap_second) = self.radio_datetime.get_leap_second() {
             if (self.radio_datetime.get_minute() == Some(59))
-                && ((s_leap_second & LEAP_ANNOUNCED) != 0)
+                && ((s_leap_second & radio_datetime_utils::LEAP_ANNOUNCED) != 0)
             {
                 61
             } else {
@@ -312,42 +310,45 @@ impl DCF77Utils {
             self.call_bit = self.bit_buffer[15];
             self.bit_20 = self.bit_buffer[20];
 
-            self.parity_1 = get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
+            self.parity_1 =
+                radio_datetime_utils::get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
             self.radio_datetime.set_minute(
-                get_bcd_value(&self.bit_buffer, 21, 27),
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 21, 27),
                 self.parity_1 == Some(false),
                 added_minute && !self.first_minute,
             );
 
-            self.parity_2 = get_parity(&self.bit_buffer, 29, 34, self.bit_buffer[35]);
+            self.parity_2 =
+                radio_datetime_utils::get_parity(&self.bit_buffer, 29, 34, self.bit_buffer[35]);
             self.radio_datetime.set_hour(
-                get_bcd_value(&self.bit_buffer, 29, 34),
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 29, 34),
                 self.parity_2 == Some(false),
                 added_minute && !self.first_minute,
             );
 
-            self.parity_3 = get_parity(&self.bit_buffer, 36, 57, self.bit_buffer[58]);
+            self.parity_3 =
+                radio_datetime_utils::get_parity(&self.bit_buffer, 36, 57, self.bit_buffer[58]);
 
             self.radio_datetime.set_weekday(
-                get_bcd_value(&self.bit_buffer, 42, 44),
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 42, 44),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_month(
-                get_bcd_value(&self.bit_buffer, 45, 49),
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 45, 49),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_year(
-                get_bcd_value(&self.bit_buffer, 50, 57),
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 50, 57),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_day(
-                get_bcd_value(&self.bit_buffer, 36, 41),
+                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 36, 41),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
@@ -370,7 +371,9 @@ impl DCF77Utils {
                 .set_leap_second(self.bit_buffer[19], minute_length);
             self.leap_second_is_one = None;
             let leap_second = self.radio_datetime.get_leap_second();
-            if leap_second.is_some() && (leap_second.unwrap() & LEAP_PROCESSED) != 0 {
+            if leap_second.is_some()
+                && (leap_second.unwrap() & radio_datetime_utils::LEAP_PROCESSED) != 0
+            {
                 self.leap_second_is_one = Some(self.bit_buffer[59] == Some(true));
             }
 
@@ -387,10 +390,7 @@ impl Default for DCF77Utils {
 
 #[cfg(test)]
 mod tests {
-    use crate::DCF77Utils;
-    use radio_datetime_utils::{
-        time_diff, DST_ANNOUNCED, DST_PROCESSED, DST_SUMMER, LEAP_ANNOUNCED, LEAP_PROCESSED,
-    };
+    use super::*;
 
     const BIT_BUFFER: [bool; 59 /* EOM not included */] = [
         false, // 0
@@ -589,7 +589,7 @@ mod tests {
         // Feed a bunch of spikes of less than spike_limit us, nothing should happen
         let mut spike = dcf77.t0;
         for i in 2..=9 {
-            spike += time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
+            spike += radio_datetime_utils::time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
             dcf77.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
             assert_eq!(dcf77.t0, spike);
             assert_eq!(dcf77.new_second, false);
@@ -647,7 +647,10 @@ mod tests {
         assert_eq!(dcf77.parity_1, Some(false));
         assert_eq!(dcf77.parity_2, Some(false));
         assert_eq!(dcf77.parity_3, Some(false));
-        assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_SUMMER));
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
         assert_eq!(dcf77.leap_second_is_one, None);
         assert_eq!(dcf77.get_bit_0(), Some(false));
@@ -677,7 +680,10 @@ mod tests {
         assert_eq!(dcf77.parity_1, Some(true)); // bad parity
         assert_eq!(dcf77.parity_2, Some(false));
         assert_eq!(dcf77.parity_3, None); // broken bit
-        assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_SUMMER));
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
         assert_eq!(dcf77.leap_second_is_one, None);
         assert_eq!(dcf77.get_bit_0(), Some(false));
@@ -707,7 +713,10 @@ mod tests {
         assert_eq!(dcf77.parity_1, Some(false));
         assert_eq!(dcf77.parity_2, Some(false));
         assert_eq!(dcf77.parity_3, Some(false));
-        assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_SUMMER));
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
         assert_eq!(dcf77.leap_second_is_one, None);
         assert_eq!(dcf77.get_bit_0(), Some(false));
@@ -748,7 +757,10 @@ mod tests {
         assert_eq!(dcf77.parity_1, Some(true)); // bad parity
         assert_eq!(dcf77.parity_2, Some(false));
         assert_eq!(dcf77.parity_3, None); // broken bit
-        assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_SUMMER));
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
         assert_eq!(dcf77.leap_second_is_one, None);
         assert_eq!(dcf77.get_bit_0(), Some(false));
@@ -779,7 +791,10 @@ mod tests {
         dcf77.bit_buffer[19] = Some(true);
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(59)); // sanity check
-        assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(LEAP_ANNOUNCED));
+        assert_eq!(
+            dcf77.radio_datetime.get_leap_second(),
+            Some(radio_datetime_utils::LEAP_ANNOUNCED)
+        );
         assert_eq!(dcf77.second, 60);
         assert_eq!(dcf77.get_this_minute_length(), 60);
         assert_eq!(dcf77.get_next_minute_length(), 61);
@@ -799,7 +814,10 @@ mod tests {
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(0));
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(17));
-        assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(LEAP_PROCESSED));
+        assert_eq!(
+            dcf77.radio_datetime.get_leap_second(),
+            Some(radio_datetime_utils::LEAP_PROCESSED)
+        );
         assert_eq!(dcf77.second, 61);
         assert_eq!(dcf77.get_this_minute_length(), 61);
         assert_eq!(dcf77.get_next_minute_length(), 60);
@@ -835,7 +853,7 @@ mod tests {
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(59));
         assert_eq!(
             dcf77.radio_datetime.get_dst(),
-            Some(DST_ANNOUNCED | DST_SUMMER)
+            Some(radio_datetime_utils::DST_ANNOUNCED | radio_datetime_utils::DST_SUMMER)
         );
         // next minute and hour:
         dcf77.bit_buffer[21] = Some(false);
@@ -851,7 +869,10 @@ mod tests {
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(0));
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(17));
-        assert_eq!(dcf77.radio_datetime.get_dst(), Some(DST_PROCESSED)); // DST flipped off
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_PROCESSED)
+        ); // DST flipped off
     }
 
     #[test]
