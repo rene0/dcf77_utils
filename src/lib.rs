@@ -44,6 +44,26 @@ pub struct DCF77Utils {
     spike_limit: u32,
 }
 
+/// Abstract generic version of get_*_minute_length()
+///
+/// # Arguments
+/// * `$self` - instance of DCF77Utils
+/// * `$condition` - an optional condition that must hold.
+/// * `$flags` - flags that must apply.
+macro_rules! get_minute_length {
+    ($self: expr, $condition: expr, $flags: expr) => {
+        if let Some(s_leap_second) = $self.radio_datetime.get_leap_second() {
+            if $condition && ((s_leap_second & $flags) != 0) {
+                61
+            } else {
+                60
+            }
+        } else {
+            60
+        }
+    };
+}
+
 impl DCF77Utils {
     /// Initialize a new DCF77Utils instance.
     pub fn new() -> Self {
@@ -226,30 +246,16 @@ impl DCF77Utils {
 
     /// Determine the length of _this_ minute in seconds, tolerate None as leap second state.
     pub fn get_this_minute_length(&self) -> u8 {
-        if let Some(s_leap_second) = self.radio_datetime.get_leap_second() {
-            if (s_leap_second & radio_datetime_utils::LEAP_PROCESSED) != 0 {
-                61
-            } else {
-                60
-            }
-        } else {
-            60
-        }
+        get_minute_length!(self, true, radio_datetime_utils::LEAP_PROCESSED)
     }
 
     /// Determine the length of _the next_ minute in seconds, tolerate None as a leap second state.
     pub fn get_next_minute_length(&self) -> u8 {
-        if let Some(s_leap_second) = self.radio_datetime.get_leap_second() {
-            if (self.radio_datetime.get_minute() == Some(59))
-                && ((s_leap_second & radio_datetime_utils::LEAP_ANNOUNCED) != 0)
-            {
-                61
-            } else {
-                60
-            }
-        } else {
-            60
-        }
+        get_minute_length!(
+            self,
+            self.radio_datetime.get_minute() == Some(59),
+            radio_datetime_utils::LEAP_ANNOUNCED
+        )
     }
 
     /// Increase or reset `second` and clear `first_minute` when appropriate.
