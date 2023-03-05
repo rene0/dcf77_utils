@@ -3,7 +3,7 @@
 //! Build with no_std for embedded platforms.
 #![cfg_attr(not(test), no_std)]
 
-use radio_datetime_utils::{RadioDateTimeUtils, radio_datetime_helpers};
+use radio_datetime_utils::{radio_datetime_helpers, RadioDateTimeUtils};
 
 pub mod dcf77_helpers;
 
