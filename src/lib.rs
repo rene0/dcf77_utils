@@ -3,7 +3,9 @@
 //! Build with no_std for embedded platforms.
 #![cfg_attr(not(test), no_std)]
 
-use radio_datetime_utils::RadioDateTimeUtils;
+use radio_datetime_utils::{RadioDateTimeUtils, radio_datetime_helpers};
+
+pub mod dcf77_helpers;
 
 /// Default upper limit for spike detection in microseconds
 const SPIKE_LIMIT: u32 = 30_000;
@@ -19,17 +21,6 @@ const PASSIVE_RUNAWAY: u32 = 2_500_000;
 /// Size of bit buffer in seconds plus one spare because we cannot know
 /// which method accessing the buffer is called after increase_second().
 const BIT_BUFFER_SIZE: usize = 61 + 1;
-
-fn get_binary_value(bit_buffer: &[Option<bool>], start: usize, stop: usize) -> Option<u16> {
-    let mut val = 0;
-    let mut mult = 1;
-    for b in &bit_buffer[start..=stop] {
-        (*b)?;
-        val += mult * b.unwrap() as u16;
-        mult *= 2;
-    }
-    Some(val)
-}
 
 /// DCF77 decoder class
 pub struct DCF77Utils {
@@ -203,7 +194,7 @@ impl DCF77Utils {
             self.t0 = t;
             return;
         }
-        let t_diff = radio_datetime_utils::time_diff(self.t0, t);
+        let t_diff = radio_datetime_helpers::time_diff(self.t0, t);
         if t_diff < self.spike_limit {
             // Shift t0 to deal with a train of spikes adding up to more than `spike_limit` microseconds.
             self.t0 += t_diff;
@@ -306,49 +297,49 @@ impl DCF77Utils {
         }
         if self.second == minute_length {
             self.bit_0 = self.bit_buffer[0];
-            self.third_party = get_binary_value(&self.bit_buffer, 1, 14);
+            self.third_party = dcf77_helpers::get_binary_value(&self.bit_buffer, 1, 14);
             self.call_bit = self.bit_buffer[15];
             self.bit_20 = self.bit_buffer[20];
 
             self.parity_1 =
-                radio_datetime_utils::get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
+                radio_datetime_helpers::get_parity(&self.bit_buffer, 21, 27, self.bit_buffer[28]);
             self.radio_datetime.set_minute(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 21, 27),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer, 21, 27),
                 self.parity_1 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.parity_2 =
-                radio_datetime_utils::get_parity(&self.bit_buffer, 29, 34, self.bit_buffer[35]);
+                radio_datetime_helpers::get_parity(&self.bit_buffer, 29, 34, self.bit_buffer[35]);
             self.radio_datetime.set_hour(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 29, 34),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer, 29, 34),
                 self.parity_2 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.parity_3 =
-                radio_datetime_utils::get_parity(&self.bit_buffer, 36, 57, self.bit_buffer[58]);
+                radio_datetime_helpers::get_parity(&self.bit_buffer, 36, 57, self.bit_buffer[58]);
 
             self.radio_datetime.set_weekday(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 42, 44),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer, 42, 44),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_month(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 45, 49),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer, 45, 49),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_year(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 50, 57),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer, 50, 57),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
 
             self.radio_datetime.set_day(
-                radio_datetime_utils::get_bcd_value(&self.bit_buffer, 36, 41),
+                radio_datetime_helpers::get_bcd_value(&self.bit_buffer, 36, 41),
                 self.parity_3 == Some(false),
                 added_minute && !self.first_minute,
             );
@@ -589,7 +580,7 @@ mod tests {
         // Feed a bunch of spikes of less than spike_limit us, nothing should happen
         let mut spike = dcf77.t0;
         for i in 2..=9 {
-            spike += radio_datetime_utils::time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
+            spike += radio_datetime_helpers::time_diff(EDGE_BUFFER[i - 1].1, EDGE_BUFFER[i].1);
             dcf77.handle_new_edge(EDGE_BUFFER[i].0, EDGE_BUFFER[i].1);
             assert_eq!(dcf77.t0, spike);
             assert_eq!(dcf77.new_second, false);
