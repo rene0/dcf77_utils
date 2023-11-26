@@ -22,12 +22,19 @@ const PASSIVE_RUNAWAY: u32 = 2_500_000;
 /// which method accessing the buffer is called after increase_second().
 const BIT_BUFFER_SIZE: usize = 61 + 1;
 
+pub enum DecodeType {
+    Live,
+    LogFile,
+}
+
 /// DCF77 decoder class
 pub struct DCF77Utils {
+    decode_type: DecodeType,
     first_minute: bool,
     new_minute: bool,
     new_second: bool,
     second: u8,
+    old_second: u8, // to see how long the minute was
     bit_buffer: [Option<bool>; BIT_BUFFER_SIZE],
     radio_datetime: RadioDateTimeUtils,
     leap_second_is_one: Option<bool>,
@@ -66,12 +73,14 @@ macro_rules! get_minute_length {
 
 impl DCF77Utils {
     /// Initialize a new DCF77Utils instance.
-    pub fn new() -> Self {
+    pub fn new(dt: DecodeType) -> Self {
         Self {
+            decode_type: dt,
             first_minute: true,
             new_minute: false,
             new_second: false,
             second: 0,
+            old_second: 0,
             bit_buffer: [None; BIT_BUFFER_SIZE],
             radio_datetime: RadioDateTimeUtils::new(7),
             leap_second_is_one: None,
@@ -110,6 +119,11 @@ impl DCF77Utils {
     /// Return if a new second has arrived.
     pub fn get_new_second(&self) -> bool {
         self.new_second
+    }
+
+    /// Get the old second counter.
+    pub fn get_old_second(&self) -> u8 {
+        self.old_second
     }
 
     /// Get the second counter.
@@ -200,7 +214,7 @@ impl DCF77Utils {
     ///
     /// This function can deal with spikes, which are arbitrarily set to `spike_limit` microseconds.
     ///
-    /// This method must be called _before_ `increase_second()`
+    /// This method must be called _after_ `increase_second()`
     ///
     /// # Arguments
     /// * `is_low_edge` - indicates that the edge has gone from high to low (as opposed to
@@ -258,48 +272,40 @@ impl DCF77Utils {
         )
     }
 
-    /// Increase or reset `second` and clear `first_minute` when appropriate.
+    /// Increase or reset `second`.
     ///
     /// This method must be called _after_ `decode_time()`, `handle_new_edge()`,
     /// `set_current_bit()`, and `force_new_minute()`.
     pub fn increase_second(&mut self) {
-        let minute_length = self.get_next_minute_length();
+        self.old_second = self.second;
         if self.new_minute {
-            if self.first_minute
-                && self.second == minute_length
-                && self.bit_0 == Some(false)
-                && self.bit_20 == Some(true)
-                && self.radio_datetime.get_dst().is_some()
-                && self.radio_datetime.get_year().is_some()
-                && self.radio_datetime.get_month().is_some()
-                && self.radio_datetime.get_day().is_some()
-                && self.radio_datetime.get_weekday().is_some()
-                && self.radio_datetime.get_hour().is_some()
-                && self.radio_datetime.get_minute().is_some()
-            {
-                // allow displaying of information after the first properly decoded minute
-                self.first_minute = false;
-            }
             self.second = 0;
         } else {
             self.second += 1;
             // wrap in case we missed the minute marker to prevent index-out-of-range
-            if self.second == minute_length + 1 || (self.second as usize) == BIT_BUFFER_SIZE {
+            if self.second == self.get_next_minute_length()
+                || (self.second as usize) == BIT_BUFFER_SIZE
+            {
                 self.second = 0;
             }
         }
     }
 
-    /// Decode the time broadcast during the last minute.
+    /// Decode the time broadcast during the last minute and clear `first_minute` when appropriate.
     ///
-    /// This method must be called _before_ `increase_second()`
+    /// This method must be called _before_ `increase_second()` in LogFile mode
+    /// and _after_ `increase_second()` in Live mode.
     pub fn decode_time(&mut self) {
         let mut added_minute = false;
         let minute_length = self.get_next_minute_length();
         if !self.first_minute {
             added_minute = self.radio_datetime.add_minute();
         }
-        if self.second == minute_length {
+        let length = 1 + match self.decode_type {
+            DecodeType::Live => self.old_second,
+            DecodeType::LogFile => self.second,
+        };
+        if length == minute_length {
             self.bit_0 = self.bit_buffer[0];
             self.third_party = dcf77_helpers::get_binary_value(&self.bit_buffer, 1, 14);
             self.call_bit = self.bit_buffer[15];
@@ -372,14 +378,22 @@ impl DCF77Utils {
                 self.leap_second_is_one = Some(self.bit_buffer[59] == Some(true));
             }
 
+            if self.bit_0 == Some(false)
+                && self.bit_20 == Some(true)
+                && self.radio_datetime.get_dst().is_some()
+                && self.radio_datetime.get_year().is_some()
+                && self.radio_datetime.get_month().is_some()
+                && self.radio_datetime.get_day().is_some()
+                && self.radio_datetime.get_weekday().is_some()
+                && self.radio_datetime.get_hour().is_some()
+                && self.radio_datetime.get_minute().is_some()
+            {
+                // allow displaying of information after the first properly decoded minute
+                self.first_minute = false;
+            }
+
             self.radio_datetime.bump_minutes_running();
         }
-    }
-}
-
-impl Default for DCF77Utils {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -413,7 +427,7 @@ mod tests {
             (!false, 366_993_436), // 114_295 us
             (!true, 367_879_221),
         ];
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
         assert_eq!(dcf77.before_first_edge, true);
         dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
         assert_eq!(dcf77.before_first_edge, false);
@@ -447,7 +461,7 @@ mod tests {
             (!false, 363_096_452), // 216_872 us
             (!true, 363_879_672),
         ];
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
         assert_eq!(dcf77.before_first_edge, true);
         dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
         assert_eq!(dcf77.before_first_edge, false);
@@ -480,7 +494,7 @@ mod tests {
             (!false, 419_994_127),
             (!true, 421_879_420), // 1_885_293 us
         ];
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
         assert_eq!(dcf77.before_first_edge, true);
         dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
         assert_eq!(dcf77.before_first_edge, false);
@@ -508,7 +522,7 @@ mod tests {
             (!true, 3_304_200_237),
             (!false, 3_304_674_788), // 474_551 us
         ];
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
         assert_eq!(dcf77.before_first_edge, true);
         dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
         assert_eq!(dcf77.before_first_edge, false);
@@ -534,7 +548,7 @@ mod tests {
             (!false, 2_917_791_465),
             (!true, 2_920_614_145),
         ];
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
         assert_eq!(dcf77.before_first_edge, true);
         dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
         assert_eq!(dcf77.before_first_edge, false);
@@ -569,7 +583,7 @@ mod tests {
             (!true, 112_141_743),  // 854_731 us
             (!false, 112_359_105), // 217_362 us
         ];
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
         assert_eq!(dcf77.before_first_edge, true);
         dcf77.handle_new_edge(EDGE_BUFFER[0].0, EDGE_BUFFER[0].1);
         assert_eq!(dcf77.before_first_edge, false);
@@ -607,10 +621,13 @@ mod tests {
 
     #[test]
     fn test_decode_time_incomplete_minute() {
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
         assert_eq!(dcf77.first_minute, true);
+        dcf77.old_second = 41;
         dcf77.second = 42;
         // note that dcf77.bit_buffer is still empty
+        assert_ne!(dcf77.get_this_minute_length(), dcf77.old_second);
+        assert_ne!(dcf77.get_next_minute_length(), dcf77.old_second);
         assert_ne!(dcf77.get_this_minute_length(), dcf77.second);
         assert_ne!(dcf77.get_next_minute_length(), dcf77.second);
         assert_eq!(dcf77.parity_1, None);
@@ -624,10 +641,10 @@ mod tests {
     }
     #[test]
     fn test_decode_time_complete_minute_ok() {
-        let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 60;
-        assert_eq!(dcf77.get_this_minute_length(), dcf77.second);
-        assert_eq!(dcf77.get_next_minute_length(), dcf77.second);
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.second + 1);
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.second + 1);
         for b in 0..=58 {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
@@ -655,10 +672,10 @@ mod tests {
     }
     #[test]
     fn test_decode_time_complete_minute_bad_bits() {
-        let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 60;
-        assert_eq!(dcf77.get_this_minute_length(), dcf77.second);
-        assert_eq!(dcf77.get_next_minute_length(), dcf77.second);
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
+        dcf77.old_second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.old_second + 1);
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.old_second + 1);
         for b in 0..=58 {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
@@ -688,15 +705,15 @@ mod tests {
     }
     #[test]
     fn continue_decode_time_complete_minute_jumped_values() {
-        let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 60;
-        assert_eq!(dcf77.get_this_minute_length(), dcf77.second);
-        assert_eq!(dcf77.get_next_minute_length(), dcf77.second);
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.second + 1);
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.second + 1);
         for b in 0..=58 {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
         dcf77.decode_time();
-        dcf77.first_minute = false;
+        assert_eq!(dcf77.first_minute, false);
         // minute 58 is really cool, so do not update bit 21 (and 28)
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(58));
@@ -727,10 +744,10 @@ mod tests {
     }
     #[test]
     fn continue_decode_time_complete_minute_bad_bits() {
-        let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 60;
-        assert_eq!(dcf77.get_this_minute_length(), dcf77.second);
-        assert_eq!(dcf77.get_next_minute_length(), dcf77.second);
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
+        dcf77.old_second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.old_second + 1);
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.old_second + 1);
         for b in 0..=58 {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
@@ -771,10 +788,10 @@ mod tests {
     }
     #[test]
     fn continue2_decode_time_complete_minute_leap_second_is_one() {
-        let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 60;
-        assert_eq!(dcf77.get_this_minute_length(), dcf77.second); // sanity check
-        assert_eq!(dcf77.get_next_minute_length(), dcf77.second); // sanity check
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.second + 1); // sanity check
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.second + 1); // sanity check
         for b in 0..=58 {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
@@ -790,7 +807,7 @@ mod tests {
             dcf77.radio_datetime.get_leap_second(),
             Some(radio_datetime_utils::LEAP_ANNOUNCED)
         );
-        assert_eq!(dcf77.second, 60);
+        assert_eq!(dcf77.second, 59);
         assert_eq!(dcf77.get_this_minute_length(), 60);
         assert_eq!(dcf77.get_next_minute_length(), 61);
 
@@ -803,9 +820,8 @@ mod tests {
         dcf77.bit_buffer[35] = Some(false);
         // which will have a leap second:
         dcf77.bit_buffer[59] = Some(true); // which has value 1 instead of 0
-        dcf77.second = 61; // 60 bits (61 seconds here, before decoding)
+        dcf77.second = 60; // 60 bits (61 seconds here, before decoding)
 
-        // leave dcf77.fist_minute true on purpose to catch minute-length bugs
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(0));
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(17));
@@ -813,7 +829,7 @@ mod tests {
             dcf77.radio_datetime.get_leap_second(),
             Some(radio_datetime_utils::LEAP_PROCESSED)
         );
-        assert_eq!(dcf77.second, 61);
+        assert_eq!(dcf77.second, 60);
         assert_eq!(dcf77.get_this_minute_length(), 61);
         assert_eq!(dcf77.get_next_minute_length(), 60);
         assert_eq!(dcf77.get_leap_second_is_one(), Some(true));
@@ -823,18 +839,18 @@ mod tests {
         dcf77.bit_buffer[21] = Some(true);
         dcf77.bit_buffer[28] = Some(true);
         // dcf77.bit_buffer[59] remains Some() but is never touched again
-        dcf77.second = 60;
+        dcf77.second = 59;
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(1));
         assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
-        assert_eq!(dcf77.second, 60); // sanity check
+        assert_eq!(dcf77.second, 59); // sanity check
         assert_eq!(dcf77.get_this_minute_length(), 60);
         assert_eq!(dcf77.get_next_minute_length(), 60);
     }
     #[test]
     fn continue_decode_time_complete_minute_dst_change() {
-        let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 60;
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
         for b in 0..=58 {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
@@ -860,7 +876,6 @@ mod tests {
         // which will have a DST change:
         dcf77.bit_buffer[17] = Some(false);
         dcf77.bit_buffer[18] = Some(true);
-        // leave dcf77.fist_minute true on purpose to catch minute-length bugs
         dcf77.decode_time();
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(0));
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(17));
@@ -872,7 +887,7 @@ mod tests {
 
     #[test]
     fn test_increase_second_same_minute_ok() {
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
         dcf77.second = 37;
         // all date/time values are None
         dcf77.increase_second();
@@ -880,9 +895,19 @@ mod tests {
         assert_eq!(dcf77.second, 38);
     }
     #[test]
+    fn test_increase_second_partial_new_minute_ok() {
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.new_minute = true;
+        dcf77.second = 37;
+        // all date/time values are None
+        dcf77.increase_second();
+        assert_eq!(dcf77.first_minute, true);
+        assert_eq!(dcf77.second, 0);
+    }
+    #[test]
     fn test_increase_second_same_minute_overflow() {
-        let mut dcf77 = DCF77Utils::default();
-        dcf77.second = 60;
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
         // leap second value is None
         dcf77.increase_second();
         assert_eq!(dcf77.first_minute, true);
@@ -890,29 +915,10 @@ mod tests {
     }
     #[test]
     fn test_increase_second_new_minute_ok() {
-        let mut dcf77 = DCF77Utils::default();
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
         dcf77.new_minute = true;
-        dcf77.second = 60;
-        dcf77.bit_0 = Some(false);
-        dcf77.bit_20 = Some(true);
-        dcf77.radio_datetime.set_year(Some(22), true, false);
-        dcf77.radio_datetime.set_month(Some(10), true, false);
-        dcf77.radio_datetime.set_weekday(Some(6), true, false);
-        dcf77.radio_datetime.set_day(Some(22), true, false);
-        dcf77.radio_datetime.set_hour(Some(12), true, false);
-        dcf77.radio_datetime.set_minute(Some(59), true, false);
-        dcf77.radio_datetime.set_dst(Some(true), Some(false), false);
+        dcf77.second = 59;
         // leap second value is None
-        dcf77.increase_second();
-        assert_eq!(dcf77.first_minute, false);
-        assert_eq!(dcf77.second, 0);
-    }
-    #[test]
-    fn test_increase_second_new_minute_none_values() {
-        let mut dcf77 = DCF77Utils::default();
-        dcf77.new_minute = true;
-        dcf77.second = 60;
-        // all date/time values left None
         dcf77.increase_second();
         assert_eq!(dcf77.first_minute, true);
         assert_eq!(dcf77.second, 0);
