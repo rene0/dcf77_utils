@@ -243,13 +243,11 @@ impl DCF77Utils {
             } else {
                 None // broken bit, active runaway
             };
+        } else if t_diff < PASSIVE_RUNAWAY {
+            self.new_minute = t_diff > MINUTE_LIMIT;
+            self.new_second = t_diff > 1_000_000 - ACTIVE_RUNAWAY;
         } else {
-            if t_diff < PASSIVE_RUNAWAY {
-                self.new_minute = t_diff > MINUTE_LIMIT;
-                self.new_second = t_diff > 1_000_000 - ACTIVE_RUNAWAY;
-            } else {
-                self.bit_buffer[self.second as usize] = None; // broken bit, passive runaway
-            }
+            self.bit_buffer[self.second as usize] = None; // broken bit, passive runaway
         }
     }
 
