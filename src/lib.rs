@@ -373,13 +373,7 @@ impl DCF77Utils {
 
             if self.bit_0 == Some(false)
                 && self.bit_20 == Some(true)
-                && self.radio_datetime.get_dst().is_some()
-                && self.radio_datetime.get_year().is_some()
-                && self.radio_datetime.get_month().is_some()
-                && self.radio_datetime.get_day().is_some()
-                && self.radio_datetime.get_weekday().is_some()
-                && self.radio_datetime.get_hour().is_some()
-                && self.radio_datetime.get_minute().is_some()
+                && self.radio_datetime.is_valid()
             {
                 // allow displaying of information after the first properly decoded minute
                 self.first_minute = false;
