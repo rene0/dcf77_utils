@@ -18,10 +18,6 @@ const MINUTE_LIMIT: u32 = 1_500_000;
 /// Signal is considered lost after this many microseconds
 const PASSIVE_RUNAWAY: u32 = 2_500_000;
 
-/// Size of bit buffer in seconds plus one spare because we cannot know
-/// which method accessing the buffer is called after increase_second().
-const BIT_BUFFER_SIZE: usize = 61 + 1;
-
 pub enum DecodeType {
     Live,
     LogFile,
@@ -35,7 +31,7 @@ pub struct DCF77Utils {
     new_second: bool,
     second: u8,
     old_second: u8, // to see how long the minute was
-    bit_buffer: [Option<bool>; BIT_BUFFER_SIZE],
+    bit_buffer: [Option<bool>; radio_datetime_utils::BIT_BUFFER_SIZE],
     radio_datetime: RadioDateTimeUtils,
     leap_second_is_one: Option<bool>,
     parity_1: Option<bool>,
@@ -81,7 +77,7 @@ impl DCF77Utils {
             new_second: false,
             second: 0,
             old_second: 0,
-            bit_buffer: [None; BIT_BUFFER_SIZE],
+            bit_buffer: [None; radio_datetime_utils::BIT_BUFFER_SIZE],
             radio_datetime: RadioDateTimeUtils::new(7),
             leap_second_is_one: None,
             parity_1: None,
@@ -267,21 +263,15 @@ impl DCF77Utils {
 
     /// Increase or reset `second`.
     ///
+    /// Returns if the second counter was increased/wrapped normally (true)
+    /// or due to an overflow (false).
+    ///
     /// This method must be called _after_ `decode_time()`, `handle_new_edge()`,
     /// `set_current_bit()`, and `force_new_minute()`.
-    pub fn increase_second(&mut self) {
+    pub fn increase_second(&mut self) -> bool {
         self.old_second = self.second;
-        if self.new_minute {
-            self.second = 0;
-        } else {
-            self.second += 1;
-            // wrap in case we missed the minute marker to prevent index-out-of-range
-            if self.second == self.get_next_minute_length()
-                || (self.second as usize) == BIT_BUFFER_SIZE
-            {
-                self.second = 0;
-            }
-        }
+        let minute_length = self.get_next_minute_length();
+        RadioDateTimeUtils::increase_second(&mut self.second, self.new_minute, minute_length)
     }
 
     /// Decode the time broadcast during the last minute and clear `first_minute` when appropriate.
