@@ -278,6 +278,7 @@ impl DCF77Utils {
     ///
     /// This could be useful for consumers just wanting to advance their current date/time.
     pub fn add_minute(&mut self) -> bool {
+        self.radio_datetime.clear_jumps();
         self.radio_datetime.add_minute()
     }
 
@@ -286,6 +287,7 @@ impl DCF77Utils {
     /// This method must be called _before_ `increase_second()` in LogFile mode
     /// and _after_ `increase_second()` in Live mode.
     pub fn decode_time(&mut self) {
+        self.radio_datetime.clear_jumps();
         let mut added_minute = false;
         let minute_length = self.get_next_minute_length();
         if !self.first_minute {
