@@ -483,7 +483,7 @@ mod tests {
         assert_eq!(dcf77.new_minute, false);
         assert_eq!(dcf77.get_current_bit(), Some(false));
 
-        dcf77.increase_second();
+        assert_eq!(dcf77.increase_second(), true);
 
         dcf77.handle_new_edge(EDGE_BUFFER[2].0, EDGE_BUFFER[2].1);
         assert_eq!(dcf77.t0, EDGE_BUFFER[2].1); // longer than a spike
@@ -867,7 +867,7 @@ mod tests {
         let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
         dcf77.second = 37;
         // all date/time values are None
-        dcf77.increase_second();
+        assert_eq!(dcf77.increase_second(), true);
         assert_eq!(dcf77.first_minute, true);
         assert_eq!(dcf77.second, 38);
     }
@@ -877,7 +877,7 @@ mod tests {
         dcf77.new_minute = true;
         dcf77.second = 37;
         // all date/time values are None
-        dcf77.increase_second();
+        assert_eq!(dcf77.increase_second(), true);
         assert_eq!(dcf77.first_minute, true);
         assert_eq!(dcf77.second, 0);
     }
@@ -886,7 +886,7 @@ mod tests {
         let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
         dcf77.second = 59;
         // leap second value is None
-        dcf77.increase_second();
+        assert_eq!(dcf77.increase_second(), false);
         assert_eq!(dcf77.first_minute, true);
         assert_eq!(dcf77.second, 0);
     }
@@ -896,7 +896,7 @@ mod tests {
         dcf77.new_minute = true;
         dcf77.second = 59;
         // leap second value is None
-        dcf77.increase_second();
+        assert_eq!(dcf77.increase_second(), true);
         assert_eq!(dcf77.first_minute, true);
         assert_eq!(dcf77.second, 0);
     }
