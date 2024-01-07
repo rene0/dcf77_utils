@@ -643,6 +643,7 @@ mod tests {
         assert_eq!(dcf77.get_current_bit(), Some(true)); // 217_362 microseconds
     }
 
+    // relaxed checks
     #[test]
     fn test_decode_time_incomplete_minute() {
         let mut dcf77 = DCF77Utils::new(DecodeType::Live);
@@ -901,6 +902,273 @@ mod tests {
         dcf77.bit_buffer[17] = Some(false);
         dcf77.bit_buffer[18] = Some(true);
         dcf77.decode_time(false);
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(0));
+        assert_eq!(dcf77.radio_datetime.get_hour(), Some(17));
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_PROCESSED)
+        ); // DST flipped off
+    }
+
+    // strict checks
+    #[test]
+    fn test_decode_time_incomplete_minute_strict() {
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
+        assert_eq!(dcf77.first_minute, true);
+        dcf77.old_second = 41;
+        dcf77.second = 42;
+        // note that dcf77.bit_buffer is still empty
+        assert_ne!(dcf77.get_this_minute_length(), dcf77.old_second);
+        assert_ne!(dcf77.get_next_minute_length(), dcf77.old_second);
+        assert_ne!(dcf77.get_this_minute_length(), dcf77.second);
+        assert_ne!(dcf77.get_next_minute_length(), dcf77.second);
+        assert_eq!(dcf77.parity_1, None);
+        dcf77.decode_time(true);
+        // not enough seconds in this minute, so nothing should happen:
+        assert_eq!(dcf77.parity_1, None);
+        assert_eq!(dcf77.get_bit_0(), None);
+        assert_eq!(dcf77.get_third_party_buffer(), None);
+        assert_eq!(dcf77.get_call_bit(), None);
+        assert_eq!(dcf77.get_bit_20(), None);
+    }
+    #[test]
+    fn test_decode_time_complete_minute_ok_strict() {
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.second + 1);
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.second + 1);
+        for b in 0..=58 {
+            dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
+        }
+        dcf77.decode_time(true);
+        // we should have a valid decoding:
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(58));
+        assert_eq!(dcf77.radio_datetime.get_hour(), Some(16));
+        assert_eq!(dcf77.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(dcf77.radio_datetime.get_day(), Some(22));
+        assert_eq!(dcf77.radio_datetime.get_month(), Some(10));
+        assert_eq!(dcf77.radio_datetime.get_year(), Some(22));
+        assert_eq!(dcf77.parity_1, Some(false));
+        assert_eq!(dcf77.parity_2, Some(false));
+        assert_eq!(dcf77.parity_3, Some(false));
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
+        assert_eq!(dcf77.leap_second_is_one, None);
+        assert_eq!(dcf77.get_bit_0(), Some(false));
+        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
+        assert_eq!(dcf77.get_call_bit(), Some(true)); // because why not?
+        assert_eq!(dcf77.get_bit_20(), Some(true));
+    }
+    #[test]
+    fn test_decode_time_complete_minute_bad_bits_strict() {
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
+        dcf77.old_second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.old_second + 1);
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.old_second + 1);
+        for b in 0..=58 {
+            dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
+        }
+        // introduce some distortions:
+        dcf77.bit_buffer[26] = Some(!dcf77.bit_buffer[26].unwrap());
+        dcf77.bit_buffer[39] = None;
+        dcf77.decode_time(true);
+        assert_eq!(dcf77.radio_datetime.get_minute(), None); // bad parity and first decoding
+        assert_eq!(dcf77.radio_datetime.get_hour(), None); // strict checks failed
+        assert_eq!(dcf77.radio_datetime.get_weekday(), None); // broken parity and first decoding
+        assert_eq!(dcf77.radio_datetime.get_day(), None); // broken bit
+        assert_eq!(dcf77.radio_datetime.get_month(), None); // broken parity and first decoding
+        assert_eq!(dcf77.radio_datetime.get_year(), None); // broken parity and first decoding
+        assert_eq!(dcf77.parity_1, Some(true)); // bad parity
+        assert_eq!(dcf77.parity_2, Some(false));
+        assert_eq!(dcf77.parity_3, None); // broken bit
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        ); // not affected by strict checks
+        assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
+        assert_eq!(dcf77.leap_second_is_one, None);
+        assert_eq!(dcf77.get_bit_0(), Some(false));
+        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
+        assert_eq!(dcf77.get_call_bit(), Some(true)); // because why not?
+        assert_eq!(dcf77.get_bit_20(), Some(true));
+    }
+    #[test]
+    fn continue_decode_time_complete_minute_jumped_values_strict() {
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.second + 1);
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.second + 1);
+        for b in 0..=58 {
+            dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
+        }
+        dcf77.decode_time(true);
+        assert_eq!(dcf77.first_minute, false);
+        // minute 58 is really cool, so do not update bit 21 (and 28)
+        dcf77.decode_time(true);
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(58));
+        assert_eq!(dcf77.radio_datetime.get_hour(), Some(16));
+        assert_eq!(dcf77.radio_datetime.get_weekday(), Some(6));
+        assert_eq!(dcf77.radio_datetime.get_day(), Some(22));
+        assert_eq!(dcf77.radio_datetime.get_month(), Some(10));
+        assert_eq!(dcf77.radio_datetime.get_year(), Some(22));
+        assert_eq!(dcf77.parity_1, Some(false));
+        assert_eq!(dcf77.parity_2, Some(false));
+        assert_eq!(dcf77.parity_3, Some(false));
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
+        assert_eq!(dcf77.leap_second_is_one, None);
+        assert_eq!(dcf77.get_bit_0(), Some(false));
+        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
+        assert_eq!(dcf77.get_call_bit(), Some(true)); // because why not?
+        assert_eq!(dcf77.get_bit_20(), Some(true));
+        assert_eq!(dcf77.radio_datetime.get_jump_minute(), true);
+        assert_eq!(dcf77.radio_datetime.get_jump_hour(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_weekday(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_day(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_month(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_year(), false);
+    }
+    #[test]
+    fn continue_decode_time_complete_minute_bad_bits_strict() {
+        let mut dcf77 = DCF77Utils::new(DecodeType::Live);
+        dcf77.old_second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.old_second + 1);
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.old_second + 1);
+        for b in 0..=58 {
+            dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
+        }
+        dcf77.decode_time(true);
+        dcf77.first_minute = false;
+        // update bit 21 and 28 for the next minute:
+        dcf77.bit_buffer[21] = Some(true);
+        dcf77.bit_buffer[28] = Some(false);
+        // introduce some distortions:
+        dcf77.bit_buffer[26] = Some(!dcf77.bit_buffer[26].unwrap());
+        dcf77.bit_buffer[39] = None;
+        dcf77.decode_time(true);
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(59)); // bad parity
+        assert_eq!(dcf77.radio_datetime.get_hour(), Some(16));
+        assert_eq!(dcf77.radio_datetime.get_weekday(), Some(6)); // broken parity
+        assert_eq!(dcf77.radio_datetime.get_day(), Some(22)); // broken bit
+        assert_eq!(dcf77.radio_datetime.get_month(), Some(10)); // broken parity
+        assert_eq!(dcf77.radio_datetime.get_year(), Some(22)); // broken parity
+        assert_eq!(dcf77.parity_1, Some(true)); // bad parity
+        assert_eq!(dcf77.parity_2, Some(false));
+        assert_eq!(dcf77.parity_3, None); // broken bit
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_SUMMER)
+        );
+        assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
+        assert_eq!(dcf77.leap_second_is_one, None);
+        assert_eq!(dcf77.get_bit_0(), Some(false));
+        assert_eq!(dcf77.get_third_party_buffer(), Some(0x18f2)); // random value
+        assert_eq!(dcf77.get_call_bit(), Some(true)); // because why not?
+        assert_eq!(dcf77.get_bit_20(), Some(true));
+        assert_eq!(dcf77.radio_datetime.get_jump_minute(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_hour(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_weekday(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_day(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_month(), false);
+        assert_eq!(dcf77.radio_datetime.get_jump_year(), false);
+    }
+    #[test]
+    fn continue2_decode_time_complete_minute_leap_second_is_one_strict() {
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
+        assert_eq!(dcf77.get_this_minute_length(), dcf77.second + 1); // sanity check
+        assert_eq!(dcf77.get_next_minute_length(), dcf77.second + 1); // sanity check
+        for b in 0..=58 {
+            dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
+        }
+        // leap second must be at top of hour and
+        // announcements only count before the hour, so set minute to 59:
+        dcf77.bit_buffer[21] = Some(true);
+        dcf77.bit_buffer[28] = Some(false);
+        // announce a leap second:
+        dcf77.bit_buffer[19] = Some(true);
+        dcf77.decode_time(true);
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(59)); // sanity check
+        assert_eq!(
+            dcf77.radio_datetime.get_leap_second(),
+            Some(radio_datetime_utils::LEAP_ANNOUNCED)
+        );
+        assert_eq!(dcf77.second, 59);
+        assert_eq!(dcf77.get_this_minute_length(), 60);
+        assert_eq!(dcf77.get_next_minute_length(), 61);
+
+        // next minute and hour:
+        dcf77.bit_buffer[21] = Some(false);
+        dcf77.bit_buffer[24] = Some(false);
+        dcf77.bit_buffer[25] = Some(false);
+        dcf77.bit_buffer[27] = Some(false);
+        dcf77.bit_buffer[29] = Some(true);
+        dcf77.bit_buffer[35] = Some(false);
+        // which will have a leap second:
+        dcf77.bit_buffer[59] = Some(true); // which has value 1 instead of 0
+        dcf77.second = 60; // 60 bits (61 seconds here, before decoding)
+
+        dcf77.decode_time(true);
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(0));
+        assert_eq!(dcf77.radio_datetime.get_hour(), Some(17));
+        assert_eq!(
+            dcf77.radio_datetime.get_leap_second(),
+            Some(radio_datetime_utils::LEAP_PROCESSED)
+        );
+        assert_eq!(dcf77.second, 60);
+        assert_eq!(dcf77.get_this_minute_length(), 61);
+        assert_eq!(dcf77.get_next_minute_length(), 60);
+        assert_eq!(dcf77.get_leap_second_is_one(), Some(true));
+
+        // next regular minute:
+        dcf77.bit_buffer[19] = Some(false);
+        dcf77.bit_buffer[21] = Some(true);
+        dcf77.bit_buffer[28] = Some(true);
+        // dcf77.bit_buffer[59] remains Some() but is never touched again
+        dcf77.second = 59;
+        dcf77.decode_time(true);
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(1));
+        assert_eq!(dcf77.radio_datetime.get_leap_second(), Some(0));
+        assert_eq!(dcf77.second, 59); // sanity check
+        assert_eq!(dcf77.get_this_minute_length(), 60);
+        assert_eq!(dcf77.get_next_minute_length(), 60);
+    }
+    #[test]
+    fn continue_decode_time_complete_minute_dst_change_strict() {
+        let mut dcf77 = DCF77Utils::new(DecodeType::LogFile);
+        dcf77.second = 59;
+        for b in 0..=58 {
+            dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
+        }
+        // DST change must be at top of hour and
+        // announcements only count before the hour, so set minute to 59:
+        dcf77.bit_buffer[21] = Some(true);
+        dcf77.bit_buffer[28] = Some(false);
+        // announce a DST change:
+        dcf77.bit_buffer[16] = Some(true);
+        dcf77.decode_time(true);
+        assert_eq!(dcf77.radio_datetime.get_minute(), Some(59));
+        assert_eq!(
+            dcf77.radio_datetime.get_dst(),
+            Some(radio_datetime_utils::DST_ANNOUNCED | radio_datetime_utils::DST_SUMMER)
+        );
+        // next minute and hour:
+        dcf77.bit_buffer[21] = Some(false);
+        dcf77.bit_buffer[24] = Some(false);
+        dcf77.bit_buffer[25] = Some(false);
+        dcf77.bit_buffer[27] = Some(false);
+        dcf77.bit_buffer[29] = Some(true);
+        dcf77.bit_buffer[35] = Some(false);
+        // which will have a DST change:
+        dcf77.bit_buffer[17] = Some(false);
+        dcf77.bit_buffer[18] = Some(true);
+        dcf77.decode_time(true);
         assert_eq!(dcf77.radio_datetime.get_minute(), Some(0));
         assert_eq!(dcf77.radio_datetime.get_hour(), Some(17));
         assert_eq!(
