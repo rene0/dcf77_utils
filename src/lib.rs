@@ -293,11 +293,11 @@ impl DCF77Utils {
         if !self.first_minute {
             added_minute = self.radio_datetime.add_minute();
         }
-        let length = 1 + match self.decode_type {
+        if 1 + match self.decode_type {
             DecodeType::Live => self.old_second,
             DecodeType::LogFile => self.second,
-        };
-        if length == minute_length {
+        } == minute_length
+        {
             self.bit_0 = self.bit_buffer[0];
             self.third_party = dcf77_helpers::get_binary_value(&self.bit_buffer, 1, 14);
             self.call_bit = self.bit_buffer[15];
