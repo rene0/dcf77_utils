@@ -777,7 +777,7 @@ mod tests {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
         dcf77.decode_time(false);
-        dcf77.first_minute = false;
+        assert_eq!(dcf77.first_minute, false);
         // update bit 21 and 28 for the next minute:
         dcf77.bit_buffer[21] = Some(true);
         dcf77.bit_buffer[28] = Some(false);
@@ -1044,7 +1044,7 @@ mod tests {
             dcf77.bit_buffer[b] = Some(BIT_BUFFER[b]);
         }
         dcf77.decode_time(true);
-        dcf77.first_minute = false;
+        assert_eq!(dcf77.first_minute, false);
         // update bit 21 and 28 for the next minute:
         dcf77.bit_buffer[21] = Some(true);
         dcf77.bit_buffer[28] = Some(false);
